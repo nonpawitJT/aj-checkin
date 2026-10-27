@@ -44,6 +44,8 @@ const ICON = {
   person: '<circle cx="10" cy="8" r="4"/><path d="M3 21c1-4 3.8-6 7-6s6 2 7 6M19 8v6M16 11h6"/>',
   cam: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
 };
+const LOGO = '<img class="logo" src="logo-96.png" srcset="logo-96.png 1x, logo-192.png 2x" alt="A&amp;J group" width="44" height="44">';
+const LOGO_BIG = '<img class="logo" src="logo-192.png" srcset="logo-192.png 1x, logo-512.png 2x" alt="A&amp;J group" width="104" height="104">';
 const svg = (name, size = 24) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`;
 
 /* ---------------------------------------------------------------- state */
@@ -141,7 +143,7 @@ function route() {
 /* ---------------------------------------------------------------- frame */
 const sizeSwitch = () => `<div class="size-switch" role="group" aria-label="ขนาดตัวอักษร"><button type="button" data-act="size" data-s="md" aria-pressed="${size !== 'lg'}">ก</button><button type="button" class="lg" data-act="size" data-s="lg" aria-pressed="${size === 'lg'}">ก+</button></div>`;
 function topbar(sub, extra) {
-  return `<header class="top"><div class="wrap"><div class="brand"><span class="mark">A&amp;J</span><div><div class="brand-name">A&amp;J เช็คอิน</div><div class="brand-sub">${sub}</div></div></div>${extra || ''}${sizeSwitch()}</div></header>`;
+  return `<header class="top"><div class="wrap"><div class="brand">${LOGO}<div><div class="brand-name">A&amp;J เช็คอิน</div><div class="brand-sub">${sub}</div></div></div>${extra || ''}${sizeSwitch()}</div></header>`;
 }
 function bare(inner) {
   $('#app').innerHTML = topbar('ลงเวลาพนักงาน') + `<main class="wrap no-nav">${inner}</main>`;
@@ -272,7 +274,7 @@ function makePhoto(file, lines) {
           g.fillStyle = grd; g.fillRect(0, h - band, w, band);
           lines.forEach((t, i) => {
             const first = i === 0;
-            g.fillStyle = first ? '#FF9440' : '#FFFFFF';
+            g.fillStyle = first ? '#FD9627' : '#FFFFFF';
             g.font = `${first ? 700 : 600} ${first ? Math.round(fs * 1.2) : fs}px Sarabun, sans-serif`;
             g.fillText(t, Math.round(fs * 0.8), h - fs * 0.75 - (lines.length - 1 - i) * fs * 1.5);
           });
@@ -289,7 +291,7 @@ function makePhoto(file, lines) {
 /* ---------------------------------------------------------------- first-time screens */
 function renderPhone(err) {
   bare(`<div class="welcome">
-    <div class="hero"><span class="mark">A&amp;J</span><h1 class="view-title">สวัสดี${S.lineName ? ` ${esc(S.lineName)}` : ''}</h1>
+    <div class="hero">${LOGO_BIG}<h1 class="view-title">สวัสดี${S.lineName ? ` ${esc(S.lineName)}` : ''}</h1>
       <p class="note">ครั้งแรกให้กรอกเบอร์โทรของคุณ เพื่อผูกกับบัญชี LINE นี้ ครั้งต่อไปเปิดแอปได้เลย</p></div>
     <form class="panel form" style="padding:18px" id="phone-form" novalidate>
       <div class="field"><label for="ph">เบอร์โทรศัพท์</label><input type="tel" id="ph" inputmode="numeric" autocomplete="tel" placeholder="08x-xxx-xxxx" value="${esc(fmtPhone(S.regPhone))}"></div>
@@ -315,12 +317,12 @@ function renderRegister() {
     </form></div>`);
 }
 function renderPending() {
-  bare(`<div class="welcome center"><div class="hero"><span class="mark">A&amp;J</span><h1 class="view-title">ส่งข้อมูลแล้ว</h1>
+  bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">ส่งข้อมูลแล้ว</h1>
     <p>รอผู้จัดการอนุมัติ เมื่ออนุมัติแล้ว เปิดแอปนี้อีกครั้งเพื่อเริ่มลงเวลา</p></div>
     <button class="btn wide" type="button" data-act="reload-me">ตรวจสอบอีกครั้ง</button></div>`);
 }
 function renderInactive() {
-  bare(`<div class="welcome center"><div class="hero"><span class="mark">A&amp;J</span><h1 class="view-title">บัญชีนี้ถูกปิดใช้งาน</h1>
+  bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">บัญชีนี้ถูกปิดใช้งาน</h1>
     <p>ถ้าคิดว่าไม่ถูกต้อง กรุณาติดต่อผู้จัดการร้าน</p></div></div>`);
 }
 

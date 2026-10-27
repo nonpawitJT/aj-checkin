@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>A&amp;J เช็คอิน</title>
-<meta name="theme-color" content="#0A3D82">
+<meta name="theme-color" content="#0F74B8">
+<link rel="icon" type="image/png" href="logo-192.png">
+<link rel="apple-touch-icon" href="logo-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=IBM+Plex+Mono:wght@500;600&family=Sarabun:wght@400;500;600;700&display=swap">
@@ -12,10 +14,10 @@
 /* Layout: one phone-width column inside LINE. Header band, scrolling content, fixed bottom menu.
    Sized for older readers: looped Thai face, 17px base, 48px+ touch targets, high-contrast tokens. */
 :root{
-  --bg:#F0F4F9; --surface:#FFFFFF; --surface-2:#E8EEF6; --ink:#0B1B2E; --muted:#3A4A5E; --line:#C5D1DF; --rule:#8494A8;
-  --brand:#0A3D82; --brand-ink:#FFFFFF; --brand-sub:#C9D8EE; --brand-line:rgb(255 255 255 / .45);
-  --sign:#F58220; --sign-ink:#0A2647;
-  --action:#0F57B8; --action-ink:#FFFFFF; --action-soft:#E2ECFA;
+  --bg:#EEF5FB; --surface:#FFFFFF; --surface-2:#E6F0F8; --ink:#0B1B2E; --muted:#3A4A5E; --line:#C4D5E4; --rule:#8296AA;
+  --brand:#0F74B8; --brand-ink:#FFFFFF; --brand-sub:#F2F8FD; --brand-line:rgb(255 255 255 / .55);
+  --sign:#FD9627; --sign-ink:#0A2647;
+  --action:#0F74B8; --action-ink:#FFFFFF; --action-soft:#E1F0FA;
   --ok:#0B6B3E; --ok-bg:#DCF1E5; --warn:#A04800; --warn-bg:#FDE9D6; --bad:#A3241B; --bad-bg:#FADFDB; --idle-bg:#E4EAF2;
   --scrim:rgb(10 16 22 / .55);
   --font-body:"Sarabun","Noto Sans Thai Looped","Leelawadee UI",Tahoma,sans-serif;
@@ -24,9 +26,9 @@
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){ :root{
-  --bg:#0A1320; --surface:#111D2D; --surface-2:#182638; --ink:#EEF3F9; --muted:#B3C1D2; --line:#2C3C52; --rule:#56677E;
-  --brand:#0F2C55; --brand-ink:#FFFFFF; --brand-sub:#B5C7E0; --brand-line:rgb(255 255 255 / .35);
-  --sign:#FF9440; --sign-ink:#0A2647; --action:#6EA8FF; --action-ink:#06111F; --action-soft:#16294A;
+  --bg:#08131E; --surface:#0F1D2B; --surface-2:#152738; --ink:#EEF4FA; --muted:#B2C3D3; --line:#2A3E52; --rule:#53697F;
+  --brand:#0C4C7A; --brand-ink:#FFFFFF; --brand-sub:#CFE3F3; --brand-line:rgb(255 255 255 / .4);
+  --sign:#FD9627; --sign-ink:#0A2647; --action:#5DB6F2; --action-ink:#04121E; --action-soft:#12304A;
   --ok:#5DD39B; --ok-bg:#123227; --warn:#FFB067; --warn-bg:#3A2410; --bad:#FF8A80; --bad-bg:#3A1B19; --idle-bg:#22324A;
   --scrim:rgb(0 0 0 / .65); color-scheme:dark;
 }}
@@ -230,7 +232,8 @@ table.t tbody tr[data-act]{cursor:pointer}
 @media (prefers-reduced-motion: reduce){ .toast{transition:none} }
 .welcome{display:grid;gap:18px;padding-top:12px}
 .welcome .hero{display:grid;gap:6px;text-align:center;justify-items:center}
-.welcome .hero .mark{width:64px;height:64px;font-size:1.5rem;border-radius:14px}
+.logo{width:44px;height:44px;border-radius:50%;flex:none;display:block}
+.welcome .hero .logo{width:104px;height:104px}
 .shopgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .shopgrid button{appearance:none;border:1.5px solid var(--rule);background:var(--surface);border-radius:10px;min-height:54px;font-family:var(--font-sign);font-weight:700;font-size:1.15rem;cursor:pointer}
 .shopgrid button[aria-pressed="true"]{background:var(--sign);border-color:var(--sign-ink);color:var(--sign-ink)}
