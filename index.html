@@ -7,6 +7,8 @@
 <meta name="theme-color" content="#0F74B8">
 <link rel="icon" type="image/png" href="logo-192.png">
 <link rel="apple-touch-icon" href="logo-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-title" content="A&amp;J เช็คอิน">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=IBM+Plex+Mono:wght@500;600&family=Sarabun:wght@400;500;600;700&display=swap">
@@ -239,6 +241,30 @@ table.t tbody tr[data-act]{cursor:pointer}
 .shopgrid button[aria-pressed="true"]{background:var(--sign);border-color:var(--sign-ink);color:var(--sign-ink)}
 .face-pick{display:flex;gap:12px;align-items:center}
 .face-pick .avatar{width:88px;height:88px}
+/* shop panels side by side when there is room */
+.shop-grid{display:grid;gap:16px;align-items:start}
+/* wide screens (Mac / PC): side menu for managers, wider work area, week table */
+table.week{min-width:860px;table-layout:fixed}
+table.week thead th:first-child{width:8.5rem}
+table.week th.emp{white-space:nowrap;font-size:1rem;color:var(--ink)}
+table.week th.is-today{color:var(--action)}
+table.week td{padding:5px 4px}
+table.week td.is-today{background:var(--action-soft)}
+table.week tr.shop-row th{background:var(--surface-2);padding:6px 10px}
+table.week .shift-btn{min-width:0;width:100%;padding:4px 6px;font-size:.9rem;position:relative}
+.shift-btn.has-note::after{content:"";position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--sign)}
+@media (min-width:1000px){
+  #app.admin{display:grid;grid-template-columns:236px minmax(0,1fr);grid-template-rows:auto 1fr;grid-template-areas:"top top" "nav main";min-height:100vh}
+  #app.admin .top{grid-area:top}
+  #app.admin .top .wrap{max-width:none;padding-left:24px;padding-right:24px}
+  #app.admin main{grid-area:main;max-width:1240px;width:100%;margin:0;padding:24px 32px 48px}
+  #app.admin .nav{grid-area:nav;position:relative;left:auto;right:auto;bottom:auto;align-self:stretch;border-top:0;border-right:1px solid var(--line);padding:16px 12px}
+  #app.admin .nav .wrap{position:sticky;top:16px;flex-direction:column;gap:4px;padding:0;max-width:none}
+  #app.admin .nav button{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;font-size:1.02rem;min-height:52px;padding:0 14px}
+  #app.admin .nav .dot{position:static;margin-left:auto}
+  #app.admin .shop-grid{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
+  #app.admin .stats{max-width:760px}
+}
 </style>
 </head>
 <body>

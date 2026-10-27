@@ -146,8 +146,16 @@ function topbar(sub, extra) {
   return `<header class="top"><div class="wrap"><div class="brand">${LOGO}<div><div class="brand-name">A&amp;J เช็คอิน</div><div class="brand-sub">${sub}</div></div></div>${extra || ''}${sizeSwitch()}</div></header>`;
 }
 function bare(inner) {
+  $('#app').className = '';
   $('#app').innerHTML = topbar('ลงเวลาพนักงาน') + `<main class="wrap no-nav">${inner}</main>`;
 }
+function setApp(html) {
+  const a = $('#app');
+  a.className = S.mode === 'admin' ? 'admin' : 'staff';
+  a.innerHTML = html;
+}
+const wideMq = window.matchMedia ? window.matchMedia('(min-width: 1000px)') : null;
+const isWide = () => !!(wideMq && wideMq.matches);
 function fatal(title, detail, retry) {
   bare(`<div class="panel errbox"><h1 class="section-title">${esc(title)}</h1>${detail ? `<p class="note">${esc(detail)}</p>` : ''}${retry ? '<button class="btn solid" type="button" data-act="reload">ลองใหม่</button>' : ''}</div>`);
 }
@@ -168,10 +176,10 @@ function shell(content) {
   return topbar(sub, extra) + `<main class="wrap" id="main">${content}</main><nav class="nav" aria-label="เมนู"><div class="wrap">${nav}</div></nav>`;
 }
 function view() { return S.mode === 'admin' ? VIEWS['adm_' + S.adm] : VIEWS['st_' + S.tab]; }
-function paint() { $('#app').innerHTML = shell(view().render()); }
+function paint() { setApp(shell(view().render())); }
 async function load() {
   const v = view(), ticket = ++S.ticket;
-  $('#app').innerHTML = shell('<p class="loading">กำลังโหลด…</p>');
+  setApp(shell('<p class="loading">กำลังโหลด…</p>'));
   try {
     await v.load();
     if (ticket !== S.ticket) return;
@@ -456,7 +464,7 @@ VIEWS.adm_board = {
         <button class="icon-btn" type="button" data-act="board-day" data-d="1" aria-label="วันถัดไป">›</button></div>
       ${date !== today ? '<button class="btn quiet" type="button" data-act="board-day" data-d="0">กลับมาวันนี้</button>' : ''}
       ${banners}${stats}
-      ${shops || '<p class="panel empty">ยังไม่มีพนักงานในระบบ ไปเพิ่มได้ที่เมนู "พนักงาน" หรือให้พนักงานเปิดแอปแล้วลงทะเบียนเอง</p>'}
+      ${shops ? `<div class="shop-grid">${shops}</div>` : '<p class="panel empty">ยังไม่มีพนักงานในระบบ ไปเพิ่มได้ที่เมนู "พนักงาน" หรือให้พนักงานเปิดแอปแล้วลงทะเบียนเอง</p>'}
       <p class="note center">แตะชื่อเพื่อดูรูป แก้เวลา หรือบันทึกความผิด</p></div>`;
   },
 };
@@ -503,6 +511,7 @@ VIEWS.adm_plan = {
   },
   render() {
     const r = S.plan, days = Array.from({ length: 7 }, (_, i) => addDays(S.weekStart, i));
+    if (isWide()) return planWeekHTML(r, days);
     const a = parseD(days[0]), b = parseD(days[6]);
     const label = a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()} ${MONTHS_S[b.getMonth()]} ${be(b.getFullYear())}` : `${a.getDate()} ${MONTHS_S[a.getMonth()]} – ${b.getDate()} ${MONTHS_S[b.getMonth()]} ${be(b.getFullYear())}`;
     const strip = days.map((k) => {
@@ -531,6 +540,44 @@ VIEWS.adm_plan = {
       <button class="btn wide" type="button" data-act="plan-copy" data-confirm="แตะอีกครั้งเพื่อคัดลอก (เติมเฉพาะวันที่ยังว่าง)">คัดลอกกะจากสัปดาห์ก่อนมาสัปดาห์นี้</button></div>`;
   },
 };
+function weekLabel(days) {
+  const a = parseD(days[0]), b = parseD(days[6]);
+  return a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()} ${MONTHS_S[b.getMonth()]} ${be(b.getFullYear())}` : `${a.getDate()} ${MONTHS_S[a.getMonth()]} – ${b.getDate()} ${MONTHS_S[b.getMonth()]} ${be(b.getFullYear())}`;
+}
+function shiftCell(sh) {
+  const cls = !sh ? 'unset' : sh.off ? 'off' : toMin(sh.start) < 540 ? 'morning' : 'evening';
+  const txt = !sh ? '+ จัดกะ' : sh.off ? 'หยุด' : `${hm(sh.start)}–${hm(sh.end)}`;
+  return { cls: cls + (sh && sh.note ? ' has-note' : ''), txt };
+}
+function planWeekHTML(r, days) {
+  const head = days.map((k) => { const d = parseD(k); return `<th class="${k === r.today ? 'is-today' : ''}">${DOW[d.getDay()]}. ${d.getDate()} ${MONTHS_S[d.getMonth()]}</th>`; }).join('');
+  let body = '';
+  S.shops.forEach((s) => {
+    const list = (r.people || []).filter((p) => p.shop_code === s.code);
+    if (!list.length) return;
+    body += `<tr class="shop-row"><th colspan="8">${shopGate(s.code)}</th></tr>`;
+    list.forEach((p) => {
+      body += `<tr><th class="emp">${esc(p.nickname)}</th>${days.map((k) => {
+        const sh = r.map[`${p.id}|${k}`], c = shiftCell(sh);
+        return `<td class="${k === r.today ? 'is-today' : ''}"><button class="shift-btn ${c.cls}" type="button" data-act="plan-cell" data-id="${esc(p.id)}" data-d="${k}"${sh && sh.note ? ` title="${esc(sh.note)}"` : ''}>${c.txt}</button></td>`;
+      }).join('')}</tr>`;
+    });
+  });
+  return `<div class="stack"><div class="view-head"><div><h1 class="view-title">จัดกะ</h1><p class="note">คลิกช่องเพื่อเปลี่ยนเวลา หรือให้หยุด จุดส้มคือมีหมายเหตุ (ชี้เมาส์เพื่ออ่าน)</p></div>
+      <div class="datenav" style="min-width:24rem"><button class="icon-btn" type="button" data-act="plan-week" data-d="-7" aria-label="สัปดาห์ก่อน">‹</button>
+        <div class="datenav-label"><span class="k">สัปดาห์</span><strong>${weekLabel(days)}</strong></div>
+        <button class="icon-btn" type="button" data-act="plan-week" data-d="7" aria-label="สัปดาห์ถัดไป">›</button></div></div>
+      ${body ? `<div class="panel table-scroll"><table class="t week"><thead><tr><th>พนักงาน</th>${head}</tr></thead><tbody>${body}</tbody></table></div>` : '<p class="panel empty">ยังไม่มีพนักงานที่ทำงานอยู่</p>'}
+      <button class="btn" type="button" data-act="plan-copy" data-confirm="คลิกอีกครั้งเพื่อคัดลอก (เติมเฉพาะวันที่ยังว่าง)" style="justify-self:start">คัดลอกกะจากสัปดาห์ก่อนมาสัปดาห์นี้</button></div>`;
+}
+function planDone(p) {
+  return (res) => {
+    const key = `${p.id}|${res.date}`;
+    if (res.clear) delete S.plan.map[key];
+    else S.plan.map[key] = { person_id: p.id, date: res.date, off: res.off, start: res.start, end: res.end, note: res.note };
+    paint();
+  };
+}
 function openShiftSheet(id, date, cur, name, onDone) {
   const fb = cur && !cur.off && cur.start ? cur : { start: '10:20', end: '20:20' };
   S.edit = { id, date, off: !!(cur && cur.off), start: fb.start, end: fb.end, has: !!cur, onDone };
@@ -684,7 +731,7 @@ VIEWS.adm_people = {
     const noShop = active.filter((p) => !p.shop_code);
     return `<div class="stack"><div class="view-head"><h1 class="view-title">พนักงาน</h1><button class="btn solid" type="button" data-act="person-new">+ เพิ่มพนักงาน</button></div>
       ${pend ? `<section class="panel"><div class="shop-head"><b class="t-warn">รออนุมัติ (${pending.length})</b></div><ul class="list">${pend}</ul></section>` : ''}
-      ${groups}
+      ${groups ? `<div class="shop-grid">${groups}</div>` : ''}
       ${noShop.length ? `<section class="panel"><div class="shop-head"><b>ผู้จัดการ / ไม่มีร้านประจำ</b></div><ul class="list">${noShop.map(row).join('')}</ul></section>` : ''}
       ${inactive.length ? `<details class="panel"><summary class="shop-head" style="cursor:pointer"><b>ปิดใช้งานแล้ว (${inactive.length})</b></summary><ul class="list">${inactive.map(row).join('')}</ul></details>` : ''}
       <p class="note">พนักงานใหม่เปิดแอปแล้วลงทะเบียนเองได้ หรือกด "+ เพิ่มพนักงาน" ใส่ชื่อกับเบอร์ไว้ก่อน แล้วให้พนักงานเปิดแอปกรอกเบอร์เดียวกัน</p></div>`;
@@ -807,11 +854,11 @@ const ACT = {
   'plan-day': (el) => { S.planDay = el.dataset.d; paint(); },
   'plan-shift': (el) => {
     const p = S.plan.people.find((x) => x.id === el.dataset.id), sh = S.plan.map[`${p.id}|${S.planDay}`];
-    openShiftSheet(p.id, S.planDay, sh || null, p.nickname, (res) => {
-      const key = `${p.id}|${res.date}`;
-      if (res.clear) delete S.plan.map[key]; else S.plan.map[key] = { person_id: p.id, date: res.date, off: res.off, start: res.start, end: res.end, note: res.note };
-      paint();
-    });
+    openShiftSheet(p.id, S.planDay, sh || null, p.nickname, planDone(p));
+  },
+  'plan-cell': (el) => {
+    const p = S.plan.people.find((x) => x.id === el.dataset.id), k = el.dataset.d;
+    openShiftSheet(p.id, k, S.plan.map[`${p.id}|${k}`] || null, p.nickname, planDone(p));
   },
   'plan-copy': (el) => busy(el, async () => {
     try { const r = await api('adm_shift_copy', { from: S.weekStart }); toast(r.copied ? `คัดลอกแล้ว ${r.copied} ช่อง` : 'ไม่มีช่องว่างให้คัดลอก'); load(); } catch (e) { toast(e.message); }
@@ -951,6 +998,12 @@ document.addEventListener('change', (ev) => {
   else if (id === 'person-period') { S.personPeriod = v; load(); }
   else if ((id === 'ed-start' || id === 'ed-end') && S.edit) { S.edit[id === 'ed-start' ? 'start' : 'end'] = v; syncShift(); }
 });
+
+/* switch between phone and wide layouts when the window is resized */
+if (wideMq) {
+  const onWide = () => { if (S.mode === 'admin' && S.adm === 'plan' && S.plan && modal.hidden) paint(); };
+  if (wideMq.addEventListener) wideMq.addEventListener('change', onWide); else if (wideMq.addListener) wideMq.addListener(onWide);
+}
 
 /* keep the clock and data fresh */
 setInterval(() => { const c = $('#clock'); if (c) c.textContent = clockText(); }, 10000);
