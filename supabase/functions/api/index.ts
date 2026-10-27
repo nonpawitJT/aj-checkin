@@ -164,6 +164,46 @@ async function signPhotos(result: unknown): Promise<unknown> {
   return replacePaths(result, map);
 }
 
+// ---------------------------------------------------------------- request log (for the dev monitor)
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function logRequest(row: Record<string, unknown>) {
+  const p = Promise.resolve(db.from("api_log").insert(row)).then(({ error }) => {
+    if (error) console.warn("api_log insert failed", error.message);
+  }).catch(() => {});
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt && typeof rt.waitUntil === "function") rt.waitUntil(p);
+}
+
+type Result = { status: number; body: Record<string, unknown> | unknown; sub?: string | null };
+
+async function handle(action: string, args: Record<string, unknown>, token: string): Promise<Result> {
+  if (!token) return { status: 401, body: { error: "auth", message: "กรุณาเปิดแอปผ่าน LINE" } };
+  try {
+    const claims = await verify(token);
+    if ("error" in claims) return { status: claims.error === "setup" ? 503 : 401, body: claims };
+    await storePhotos(action, args);
+    const { data, error } = await db.rpc("api", {
+      p_sub: claims.sub,
+      p_name: claims.name,
+      p_picture: claims.picture,
+      p_action: action,
+      p_args: args,
+    });
+    if (error) {
+      if (error.code === "P0001") return { status: 400, body: { error: error.hint || "app", message: error.message }, sub: claims.sub };
+      if (error.code === "23505") return { status: 409, body: { error: "duplicate", message: "ข้อมูลนี้บันทึกไปแล้ว ลองรีเฟรชหน้า" }, sub: claims.sub };
+      console.error("rpc error", action, error);
+      return { status: 500, body: { error: "server", message: "ระบบขัดข้อง ลองใหม่อีกครั้ง", detail: error.message }, sub: claims.sub };
+    }
+    return { status: 200, body: await signPhotos(data), sub: claims.sub };
+  } catch (e) {
+    if (e instanceof UserError) return { status: 400, body: { error: e.code, message: e.message } };
+    console.error("request failed", action, e);
+    return { status: 500, body: { error: "server", message: "ระบบขัดข้อง ลองใหม่อีกครั้ง", detail: String(e) } };
+  }
+}
+
 // ---------------------------------------------------------------- handler
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -184,30 +224,18 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, line_channel_set: Boolean(cid), time: new Date().toISOString() });
   }
 
-  const token = req.headers.get("x-line-token") ?? "";
-  if (!token) return json({ error: "auth", message: "กรุณาเปิดแอปผ่าน LINE" }, 401);
-
-  try {
-    const claims = await verify(token);
-    if ("error" in claims) return json(claims, claims.error === "setup" ? 503 : 401);
-    await storePhotos(action, args);
-    const { data, error } = await db.rpc("api", {
-      p_sub: claims.sub,
-      p_name: claims.name,
-      p_picture: claims.picture,
-      p_action: action,
-      p_args: args,
-    });
-    if (error) {
-      if (error.code === "P0001") return json({ error: error.hint || "app", message: error.message }, 400);
-      if (error.code === "23505") return json({ error: "duplicate", message: "ข้อมูลนี้บันทึกไปแล้ว ลองรีเฟรชหน้า" }, 409);
-      console.error("rpc error", action, error);
-      return json({ error: "server", message: "ระบบขัดข้อง ลองใหม่อีกครั้ง" }, 500);
-    }
-    return json(await signPhotos(data));
-  } catch (e) {
-    if (e instanceof UserError) return json({ error: e.code, message: e.message }, 400);
-    console.error("request failed", action, e);
-    return json({ error: "server", message: "ระบบขัดข้อง ลองใหม่อีกครั้ง" }, 500);
-  }
+  const t0 = Date.now();
+  const actingAs = typeof args._as === "string" && UUID_RE.test(args._as) ? args._as : null;
+  const res = await handle(action, args, req.headers.get("x-line-token") ?? "");
+  const b = (res.body ?? {}) as Record<string, unknown>;
+  logRequest({
+    action: action.slice(0, 40),
+    status: res.status,
+    ms: Date.now() - t0,
+    line_sub: res.sub ?? null,
+    acting_as: actingAs,
+    error: res.status >= 400 ? String(b.detail ?? b.message ?? b.error ?? "").slice(0, 300) : null,
+  });
+  if (b && typeof b === "object" && "detail" in b) delete b.detail;
+  return json(res.body, res.status);
 });

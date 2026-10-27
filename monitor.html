@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0F74B8">
+<title>A&amp;J Monitor</title>
+<link rel="icon" href="logo-96.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF5FB; --surface:#FFFFFF; --surface-2:#E6F0F8; --ink:#0B1B2E; --muted:#3A4A5E; --faint:#5A6B7E; --line:#C4D5E4; --rule:#8296AA;
+  --brand:#0F74B8; --brand-ink:#FFFFFF; --sign:#FD9627; --sign-ink:#0A2647;
+  --action:#0F74B8; --action-soft:#E1F0FA; --bar:#4A9BD1; --grid:#DCE6EF;
+  --ok:#0B6B3E; --ok-bg:#DCF1E5; --warn:#A04800; --warn-bg:#FDE9D6; --bad:#A3241B; --bad-bg:#FADFDB; --idle-bg:#E4EAF2;
+  --font-body:"Sarabun","Noto Sans Thai",system-ui,sans-serif; --font-data:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A1522; --surface:#122233; --surface-2:#18304A; --ink:#E9F1F8; --muted:#A9BACB; --faint:#8EA2B6; --line:#2A425C; --rule:#4E6A86;
+    --brand:#0B5C93; --action:#62B4EC; --action-soft:#163A57; --bar:#5AAEE6; --grid:#22384F;
+    --ok:#5DD39B; --ok-bg:#123227; --warn:#FFB067; --warn-bg:#3A2410; --bad:#FF8A80; --bad-bg:#3A1B19; --idle-bg:#22324A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A1522; --surface:#122233; --surface-2:#18304A; --ink:#E9F1F8; --muted:#A9BACB; --faint:#8EA2B6; --line:#2A425C; --rule:#4E6A86;
+  --brand:#0B5C93; --action:#62B4EC; --action-soft:#163A57; --bar:#5AAEE6; --grid:#22384F;
+  --ok:#5DD39B; --ok-bg:#123227; --warn:#FFB067; --warn-bg:#3A2410; --bad:#FF8A80; --bad-bg:#3A1B19; --idle-bg:#22324A;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.5}
+button,input,select{font:inherit;color:inherit}
+h1,h2,h3,p{margin:0}
+.num{font-family:var(--font-data);font-variant-numeric:tabular-nums}
+.top{background:var(--brand);color:var(--brand-ink);border-bottom:4px solid var(--sign)}
+.top .in{max-width:1320px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap}
+.top img{width:40px;height:40px;border-radius:50%;background:#fff}
+.top h1{font-size:1.2rem;font-weight:700;line-height:1.2}
+.top .sub{font-size:.88rem;opacity:.9}
+.top .sp{flex:1}
+.tbtn{appearance:none;border:1.5px solid rgb(255 255 255 / .55);background:transparent;color:inherit;border-radius:10px;padding:6px 14px;min-height:40px;font-weight:600;cursor:pointer}
+.tbtn[aria-pressed="false"]{opacity:.75}
+main{max-width:1320px;margin:0 auto;padding:18px 16px 48px;display:grid;gap:18px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;min-width:0}
+.ph{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ph h2{font-size:1.05rem;font-weight:700}
+.note{color:var(--muted);font-size:.9rem}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (min-width:760px){ .tiles{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@media (min-width:1240px){ .tiles{grid-template-columns:repeat(6,minmax(0,1fr))} }
+.tile{padding:14px 16px;display:grid;gap:4px;align-content:start}
+.tile .k{color:var(--muted);font-weight:600;font-size:.92rem}
+.tile .v{font-size:2rem;font-weight:700;line-height:1.15;overflow-wrap:anywhere}
+.tile .v small{font-size:1rem;color:var(--muted);font-weight:600}
+.tile .s{color:var(--muted);font-size:.88rem}
+.meter{height:8px;border-radius:4px;background:var(--idle-bg);overflow:hidden;margin-top:6px}
+.meter i{display:block;height:100%;border-radius:4px;background:var(--action)}
+.meter.warn i{background:var(--warn)}
+.t-bad{color:var(--bad)} .t-ok{color:var(--ok)} .t-warn{color:var(--warn)}
+.grid2{display:grid;gap:18px}
+@media (min-width:1000px){ .grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.94rem}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.86rem;background:var(--surface-2);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+.err-txt{color:var(--bad);font-size:.86rem;word-break:break-word}
+.empty{color:var(--muted);text-align:center;padding:20px 12px}
+.tag{display:inline-block;font-size:.78rem;font-weight:700;color:var(--action);background:var(--action-soft);border-radius:6px;padding:0 7px;margin:1px 2px 1px 0;white-space:nowrap}
+.tag.test{color:var(--sign-ink);background:var(--sign)}
+.tag.dev{color:#fff;background:#6B3FA0}
+.tag.off{color:var(--bad);background:var(--bad-bg)}
+.st{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:.9rem;white-space:nowrap}
+.st::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor}
+.st.approved{color:var(--ok)} .st.submitted{color:var(--warn)} .st.draft{color:var(--action)} .st.none{color:var(--faint)}
+.st.e5{color:var(--bad)} .st.e4{color:var(--warn)} .st.ok{color:var(--ok)}
+.btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--rule);background:var(--surface);border-radius:10px;padding:5px 12px;min-height:38px;font-weight:600;cursor:pointer;text-decoration:none;color:var(--ink);white-space:nowrap}
+.btn.solid{background:var(--action);border-color:var(--action);color:#fff}
+.btn.danger{border-color:var(--bad);color:var(--bad)}
+.btn[data-armed]{background:var(--bad);border-color:var(--bad);color:#fff}
+.btn:disabled{opacity:.55;cursor:default}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.form{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;padding:14px 16px}
+.f{display:grid;gap:4px}
+.f label{font-weight:600;font-size:.9rem}
+.f input[type=text],.f select{background:var(--surface);border:1.5px solid var(--rule);border-radius:10px;padding:6px 10px;min-height:42px;min-width:10rem}
+.chk{display:flex;gap:8px;align-items:center;min-height:42px;font-weight:600}
+.chk input{width:20px;height:20px;accent-color:var(--action)}
+.chart{padding:12px 16px 14px;position:relative;overflow-x:auto}
+.chart svg{display:block;width:100%;min-width:640px;height:auto;overflow:visible}
+.chart .lbl{fill:var(--faint);font-family:var(--font-data);font-size:11px}
+.chart .gl{stroke:var(--grid);stroke-width:1}
+.chart .b{fill:var(--bar)}
+.chart .be{fill:var(--bad)}
+.chart .hit{fill:transparent;cursor:default}
+.chart .hit:hover + .hl{opacity:1}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);border-radius:8px;padding:6px 10px;font-size:.86rem;line-height:1.35;white-space:nowrap;transform:translate(-50%,-100%);opacity:0;transition:opacity .1s}
+.tip.show{opacity:1}
+.key{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.86rem;padding:0 16px 12px}
+.key i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.box{padding:24px;text-align:center;display:grid;gap:12px;justify-items:center}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 18px;border-radius:12px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s;max-width:calc(100vw - 32px);z-index:9}
+.toast.show{opacity:1}
+.rows{display:flex;gap:6px 16px;flex-wrap:wrap;padding:10px 16px;color:var(--muted);font-size:.88rem}
+.rows b{color:var(--ink);font-family:var(--font-data);font-weight:600}
+.mini-face{width:30px;height:30px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px;background:var(--idle-bg);display:inline-block}
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <img src="logo-96.png" alt="">
+  <div><h1>A&amp;J Monitor</h1><div class="sub" id="sub">หน้าสำหรับผู้ดูแลระบบ</div></div>
+  <span class="sp"></span>
+  <button class="tbtn" type="button" id="auto" aria-pressed="true">อัปเดตอัตโนมัติ 60 วิ</button>
+  <button class="tbtn" type="button" id="refresh">รีเฟรช</button>
+  <a class="tbtn" href="index.html" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">เปิดแอป</a>
+</div></header>
+<main id="main"><div class="panel box"><p class="note">กำลังเข้าสู่ระบบ…</p></div></main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="config.js"></script>
+<script>
+'use strict';
+const CFG = window.APP_CONFIG || {};
+const $ = (s) => document.querySelector(s);
+const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const n = (v) => (v == null ? '–' : Number(v).toLocaleString('th-TH'));
+const mb = (b) => (b / 1048576).toFixed(b < 10485760 ? 2 : 1);
+const MONTHS_S = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const DOW = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+const dLabel = (k) => { const p = k.split('-').map(Number), d = new Date(p[0], p[1] - 1, p[2]); return `${DOW[d.getDay()]}. ${d.getDate()} ${MONTHS_S[d.getMonth()]}`; };
+const ACTION_TH = {
+  me: 'เปิดแอป', link_phone: 'ใส่เบอร์', register: 'ลงทะเบียน', today: 'หน้าลงเวลา', punch: 'ถ่ายรูปลงเวลา', my_shifts: 'ดูกะของฉัน', my_history: 'ดูประวัติ',
+  ros_get: 'เปิดจัดเวร', ros_init: 'เริ่มตารางเวร', ros_item_save: 'แก้คนในตาราง', ros_item_delete: 'ลบคนในตาราง', ros_notes: 'บันทึกประกาศ', ros_submit: 'ส่งตารางให้ตรวจ', ros_approve: 'อนุมัติตาราง',
+  adm_board: 'หน้าวันนี้ (แอดมิน)', adm_shifts: 'ภาพรวมสัปดาห์', adm_people: 'รายชื่อพนักงาน', adm_person_save: 'บันทึกพนักงาน', adm_person_unlink: 'ยกเลิกผูก LINE', adm_punch_fix: 'แก้เวลาลงงาน',
+  adm_notices: 'ดูบันทึกบกพร่อง', adm_notice_add: 'เพิ่มบันทึกบกพร่อง', adm_notice_delete: 'ลบบันทึกบกพร่อง', adm_summary: 'สรุปเดือน', adm_person_detail: 'ดูรายคน',
+  dev_monitor: 'หน้า Monitor', dev_test_person: 'สร้างคนทดสอบ', dev_test_reset: 'ลบข้อมูลทดสอบ',
+};
+const ROS_TH = { approved: 'อนุมัติแล้ว', submitted: 'รออนุมัติ', draft: 'กำลังจัด' };
+const S = { token: '', data: null, auto: true, timer: null, busy: false };
+
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3200); }
+function box(title, detail, retry) {
+  $('#main').innerHTML = `<div class="panel box"><h2>${esc(title)}</h2>${detail ? `<p class="note">${esc(detail)}</p>` : ''}${retry ? '<button class="btn solid" type="button" onclick="location.reload()">ลองใหม่</button>' : ''}</div>`;
+}
+
+async function api(action, args) {
+  const res = await fetch(CFG.API_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-line-token': S.token }, body: JSON.stringify({ action, args: args || {} }) });
+  let body = {};
+  try { body = await res.json(); } catch (e) { /* ignore */ }
+  if (!res.ok) {
+    if (body.error === 'token_expired' || (res.status === 401 && body.error === 'auth')) {
+      try { liff.logout(); } catch (e) { /* ignore */ }
+      liff.login({ redirectUri: location.href });
+    }
+    const err = new Error(body.message || `ระบบขัดข้อง (${res.status})`); err.code = body.error; throw err;
+  }
+  return body;
+}
+
+async function boot() {
+  if (!window.liff) return box('โหลด LINE ไม่สำเร็จ', 'ตรวจอินเทอร์เน็ตแล้วลองใหม่', true);
+  try { await liff.init({ liffId: CFG.LIFF_ID }); } catch (e) { return box('เปิด LINE Login ไม่สำเร็จ', (e && e.message) || '', true); }
+  if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+  S.token = liff.getIDToken();
+  await refresh(true);
+  schedule();
+}
+
+async function refresh(first) {
+  if (S.busy) return;
+  S.busy = true;
+  const b = $('#refresh'); b.disabled = true;
+  try {
+    S.data = await api('dev_monitor');
+    render();
+  } catch (e) {
+    if (first || e.code === 'forbidden') box(e.code === 'forbidden' ? 'หน้านี้สำหรับผู้ดูแลระบบเท่านั้น' : 'โหลดข้อมูลไม่สำเร็จ', e.message, e.code !== 'forbidden');
+    else toast(e.message);
+  } finally { S.busy = false; b.disabled = false; }
+}
+function schedule() {
+  clearInterval(S.timer);
+  if (S.auto) S.timer = setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 60000);
+}
+
+/* ---------------------------------------------------------------- render */
+function tiles(d) {
+  const p = d.people, t = d.today_att, a = d.api, st = d.storage;
+  const errs = (a.client_err || 0) + (a.server_err || 0);
+  const pctS = Math.min(100, (st.bytes / 1073741824) * 100), pctD = Math.min(100, (d.db_bytes / 524288000) * 100);
+  const kinds = Object.entries(st.by_kind || {}).map(([k, v]) => `${({ face: 'หน้า', punch: 'ลงเวลา', notice: 'บกพร่อง' })[k] || k} ${n(v.files)}`).join(' · ');
+  return `<section class="tiles">
+    <div class="panel tile"><span class="k">พนักงานใช้งานอยู่</span><span class="v num">${n(p.active)}<small> / ${n(p.total)} คน</small></span>
+      <span class="s">${p.pending ? `<b class="t-warn">รออนุมัติ ${n(p.pending)}</b> · ` : ''}ผูก LINE ${n(p.linked)} · แอดมิน ${n(p.admins)} · ผู้จัดเวร ${n(p.schedulers)}${p.test ? ` · ทดสอบ ${n(p.test)}` : ''}</span></div>
+    <div class="panel tile"><span class="k">ลงเวลาวันนี้</span><span class="v num">${n(t.in)}<small> / ${n(t.planned)} มีกะ</small></span>
+      <span class="s">ออกงานแล้ว ${n(t.out)} · หยุด ${n(t.off)} · ${t.late ? `<b class="t-warn">สาย ${n(t.late)} คน (${n(t.late_min)} นาที)</b>` : 'ไม่มีคนสาย'}</span></div>
+    <div class="panel tile"><span class="k">การเรียกระบบ 24 ชม.</span><span class="v num">${n(a.total)}<small> ครั้ง</small></span>
+      <span class="s">${errs ? `<b class="t-bad">ผิดพลาด ${n(errs)}</b> (ระบบ ${n(a.server_err)})` : '<span class="t-ok">ไม่มีข้อผิดพลาด</span>'} · ผู้ใช้ ${n(a.users)} คน</span></div>
+    <div class="panel tile"><span class="k">ความเร็วตอบกลับ</span><span class="v num">${a.avg_ms == null ? '–' : n(a.avg_ms)}<small> ms เฉลี่ย</small></span>
+      <span class="s">95% ของคำขอเร็วกว่า ${a.p95_ms == null ? '–' : n(a.p95_ms) + ' ms'}</span></div>
+    <div class="panel tile"><span class="k">พื้นที่รูป (ฟรี 1 GB)</span><span class="v num">${mb(st.bytes)}<small> MB</small></span>
+      <div class="meter${pctS > 80 ? ' warn' : ''}"><i style="width:${Math.max(pctS, 0.5).toFixed(1)}%"></i></div>
+      <span class="s">${n(st.files)} รูป${kinds ? ` · ${kinds}` : ''} · ใช้ไป ${pctS.toFixed(pctS < 1 ? 2 : 1)}%</span></div>
+    <div class="panel tile"><span class="k">ฐานข้อมูล (ฟรี 500 MB)</span><span class="v num">${mb(d.db_bytes)}<small> MB</small></span>
+      <div class="meter${pctD > 80 ? ' warn' : ''}"><i style="width:${Math.max(pctD, 0.5).toFixed(1)}%"></i></div>
+      <span class="s">ใช้ไป ${pctD.toFixed(1)}%</span></div>
+  </section>`;
+}
+function hourly(d) {
+  const hs = d.hourly || [], W = 960, H = 150, L = 34, B = 22, T = 8;
+  const max = Math.max(4, ...hs.map((x) => x.n));
+  const step = Math.pow(10, Math.floor(Math.log10(max))), top = Math.ceil(max / step) * step;
+  const bw = (W - L) / hs.length, y = (v) => T + (H - T - B) * (1 - v / top);
+  let g = '';
+  [0, top / 2, top].forEach((v) => { g += `<line class="gl" x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text class="lbl" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`; });
+  hs.forEach((x, i) => {
+    const x0 = L + i * bw + 1, w = Math.max(2, bw - 2);
+    const bar = (v, cls) => { if (!v) return ''; const h = Math.max(2, y(0) - y(v)), r = Math.min(4, w / 2, h); return `<path class="${cls}" d="M${x0},${y(0)} v${-(h - r)} q0,${-r} ${r},${-r} h${w - 2 * r} q${r},0 ${r},${r} v${h - r} z"/>`; };
+    g += bar(x.n, 'b') + bar(x.e, 'be');
+    if (i % 3 === 0 || i === hs.length - 1) g += `<text class="lbl" x="${x0 + w / 2}" y="${H - 6}" text-anchor="middle">${x.h}</text>`;
+    g += `<rect class="hit" x="${L + i * bw}" y="${T}" width="${bw}" height="${H - T - B}" data-tip="${esc(`${x.h}:00–${x.h}:59 · ${x.n} ครั้ง${x.e ? ` · ระบบขัดข้อง ${x.e}` : ''}`)}"/>`;
+  });
+  return `<section class="panel"><div class="ph"><h2>จำนวนการเรียกระบบรายชั่วโมง (24 ชม.ล่าสุด)</h2><span class="note">เวลาไทย</span></div>
+    <div class="chart" id="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="จำนวนการเรียกระบบรายชั่วโมง">${g}</svg><div class="tip" id="tip"></div></div>
+    ${hs.some((x) => x.e) ? '<div class="key"><span><i style="background:var(--bad)"></i>ระบบขัดข้อง (500)</span></div>' : ''}</section>`;
+}
+function actionsTable(d) {
+  const rows = (d.actions || []).map((x) => `<tr><td>${esc(ACTION_TH[x.action] || x.action)} <span class="note num">${esc(x.action)}</span></td><td class="r num">${n(x.n)}</td>
+    <td class="r num ${x.err ? 't-bad' : ''}">${n(x.err)}</td><td class="r num">${n(x.avg_ms)}</td></tr>`).join('');
+  return `<section class="panel"><div class="ph"><h2>คำสั่งที่ใช้ (24 ชม.)</h2></div>
+    ${rows ? `<div class="scroll"><table><thead><tr><th>คำสั่ง</th><th class="r">ครั้ง</th><th class="r">ผิดพลาด</th><th class="r">ms เฉลี่ย</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">ยังไม่มีการใช้งานใน 24 ชม.</p>'}</section>`;
+}
+const stCls = (s) => (s >= 500 ? 'e5' : s >= 400 ? 'e4' : 'ok');
+const who = (x) => `${esc(x.who || 'ยังไม่ลงทะเบียน')}${x.as ? ` <span class="tag test">ในฐานะ ${esc(x.as)}</span>` : ''}`;
+function errorsTable(d) {
+  const rows = (d.errors || []).map((x) => `<tr><td class="num">${esc(x.at)}</td><td>${esc(ACTION_TH[x.action] || x.action)}<br><span class="st ${stCls(x.status)} num">${x.status}</span></td>
+    <td>${who(x)}<div class="err-txt">${esc(x.error || '')}</div></td></tr>`).join('');
+  return `<section class="panel"><div class="ph"><h2>ข้อผิดพลาดล่าสุด</h2><span class="note">400 = ผู้ใช้กรอกผิด/ไม่มีสิทธิ์ · 500 = ระบบขัดข้อง</span></div>
+    ${rows ? `<div class="scroll"><table><thead><tr><th>เวลา</th><th>คำสั่ง</th><th>ใคร / ข้อความ</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty t-ok">ไม่มีข้อผิดพลาด</p>'}</section>`;
+}
+function recentTable(d) {
+  const rows = (d.recent || []).map((x) => `<tr><td class="num">${esc(x.at)}</td><td>${who(x)}</td><td>${esc(ACTION_TH[x.action] || x.action)}</td>
+    <td><span class="st ${stCls(x.status)} num">${x.status}</span></td><td class="r num">${n(x.ms)}</td></tr>`).join('');
+  return `<section class="panel"><div class="ph"><h2>ความเคลื่อนไหวล่าสุด</h2><span class="note">40 รายการ</span></div>
+    ${rows ? `<div class="scroll"><table><thead><tr><th>เวลา</th><th>ใคร</th><th>ทำอะไร</th><th>ผล</th><th class="r">ms</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">ยังไม่มีการใช้งาน</p>'}</section>`;
+}
+function rostersTable(d) {
+  const rows = (d.rosters || []).map((x) => {
+    const st = x.items ? (x.status || 'draft') : 'none';
+    return `<tr><td>${x.date === d.today ? '<b>วันนี้</b> · ' : ''}${dLabel(x.date)}</td><td><span class="st ${st}">${st === 'none' ? 'ยังไม่จัด' : ROS_TH[st]}</span></td><td class="r num">${n(x.items)}</td></tr>`;
+  }).join('');
+  return `<section class="panel"><div class="ph"><h2>ตารางเวร</h2><a class="btn" href="index.html?tab=roster" target="_blank" rel="noopener">เปิดหน้าจัดเวร</a></div>
+    <div class="scroll"><table><thead><tr><th>วัน</th><th>สถานะ</th><th class="r">แถว</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="rows">${Object.entries(d.rows || {}).map(([k, v]) => `<span>${esc(k)} <b>${n(v)}</b></span>`).join('')}</div></section>`;
+}
+function peopleTable(d) {
+  const shops = ['A2', 'A3', 'A8', 'A14', 'A21', 'B3', 'B7', 'B19'];
+  const rows = (d.people_list || []).map((p) => {
+    const face = p.face_photo || p.line_picture;
+    const tags = [p.role === 'admin' ? '<span class="tag">แอดมิน</span>' : '', p.can_schedule ? '<span class="tag">ผู้จัดเวร</span>' : '', p.is_dev ? '<span class="tag dev">dev</span>' : '',
+      p.is_test ? '<span class="tag test">ทดสอบ</span>' : '', p.status !== 'active' ? `<span class="tag off">${p.status === 'pending' ? 'รออนุมัติ' : 'ปิดใช้งาน'}</span>` : ''].join('');
+    const self = p.is_dev;
+    const open = self ? '<a class="btn" href="index.html" target="_blank" rel="noopener">เปิดแอป (ตัวเอง)</a>'
+      : p.status !== 'active' ? '<span class="note">ต้องเปิดใช้งานก่อน</span>'
+      : `<a class="btn solid" href="index.html?as=${esc(p.id)}" target="_blank" rel="noopener">ใช้งานในฐานะคนนี้</a>${p.can_schedule || p.role === 'admin' ? `<a class="btn" href="index.html?as=${esc(p.id)}&tab=roster" target="_blank" rel="noopener">จัดเวร</a>` : ''}`;
+    return `<tr><td>${face ? `<img class="mini-face" src="${esc(face)}" alt="">` : '<span class="mini-face"></span>'}<b>${esc(p.nickname)}</b>${p.full_name ? ` <span class="note">${esc(p.full_name)}</span>` : ''}<div>${tags}</div></td>
+      <td class="num">${esc(p.shop_code || '–')}</td><td class="num">${esc(p.phone)}</td><td>${p.linked ? `<span class="t-ok">ผูกแล้ว</span>${p.line_name ? `<div class="note">${esc(p.line_name)}</div>` : ''}` : '<span class="note">ยังไม่ผูก</span>'}</td>
+      <td><div class="acts">${open}</div></td></tr>`;
+  }).join('');
+  return `<section class="panel"><div class="ph"><h2>ทดสอบในฐานะคนอื่น</h2><span class="note">เปิดแอปในแท็บใหม่ ทุกการกดบันทึกเกิดขึ้นจริง ใช้กับคนทดสอบเป็นหลัก · คนทดสอบไม่แสดงให้แอดมินคนอื่นเห็น</span></div>
+    <div class="scroll"><table><thead><tr><th>ชื่อ</th><th>ร้าน</th><th>เบอร์</th><th>LINE</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <form class="form" id="tp-form" style="border-top:1px solid var(--line)">
+      <div class="f"><label for="tp-name">สร้างคนทดสอบ ชื่อ</label><input type="text" id="tp-name" maxlength="20" placeholder="เช่น พนักงาน B7"></div>
+      <div class="f"><label for="tp-role">บทบาท</label><select id="tp-role"><option value="staff">พนักงาน</option><option value="admin">แอดมิน</option></select></div>
+      <div class="f"><label for="tp-shop">ร้าน</label><select id="tp-shop"><option value="">ไม่มี</option>${shops.map((s) => `<option${s === 'A2' ? ' selected' : ''}>${s}</option>`).join('')}</select></div>
+      <label class="chk"><input type="checkbox" id="tp-sched"> ผู้จัดเวร</label>
+      <button class="btn solid" type="submit">สร้าง</button>
+      <span class="sp" style="flex:1"></span>
+      <button class="btn danger" type="button" id="tp-reset" data-confirm="แตะอีกครั้ง ลบคนทดสอบและข้อมูลทั้งหมดของเขา">ลบข้อมูลทดสอบทั้งหมด</button>
+    </form></section>`;
+}
+function render() {
+  const d = S.data;
+  $('#sub').textContent = `ข้อมูล ณ ${d.now} น.`;
+  $('#main').innerHTML = tiles(d) + hourly(d) + `<div class="grid2">${actionsTable(d)}${errorsTable(d)}</div>`
+    + `<div class="grid2">${recentTable(d)}${rostersTable(d)}</div>` + peopleTable(d);
+}
+
+/* ---------------------------------------------------------------- events */
+$('#refresh').addEventListener('click', () => refresh());
+$('#auto').addEventListener('click', (e) => { S.auto = !S.auto; e.currentTarget.setAttribute('aria-pressed', String(S.auto)); e.currentTarget.textContent = S.auto ? 'อัปเดตอัตโนมัติ 60 วิ' : 'หยุดอัปเดตอัตโนมัติ'; schedule(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.auto && S.data) refresh(); });
+document.addEventListener('mousemove', (e) => {
+  const tip = $('#tip'); if (!tip) return;
+  const h = e.target.closest && e.target.closest('.hit');
+  if (!h) { tip.classList.remove('show'); return; }
+  const box = $('#chart').getBoundingClientRect(), r = h.getBoundingClientRect();
+  tip.textContent = h.dataset.tip;
+  const sc = $('#chart').scrollLeft;
+  tip.style.left = `${r.left - box.left + sc + r.width / 2}px`; tip.style.top = `${r.top - box.top + 4}px`;
+  tip.classList.add('show');
+});
+document.addEventListener('submit', async (e) => {
+  if (e.target.id !== 'tp-form') return;
+  e.preventDefault();
+  const btn = e.target.querySelector('button[type=submit]');
+  const nickname = $('#tp-name').value.trim(), role = $('#tp-role').value, shop = $('#tp-shop').value;
+  if (!nickname) return toast('ใส่ชื่อคนทดสอบก่อน');
+  btn.disabled = true;
+  try {
+    const r = await api('dev_test_person', { nickname, role, shop_code: shop, can_schedule: $('#tp-sched').checked });
+    toast(`สร้าง ${r.person.nickname} แล้ว`);
+    S.busy = false; await refresh();
+  } catch (err) { toast(err.message); } finally { btn.disabled = false; }
+});
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('#tp-reset');
+  if (!b) return;
+  if (!b.dataset.armed) {
+    b.dataset.orig = b.textContent; b.textContent = b.dataset.confirm; b.dataset.armed = '1';
+    setTimeout(() => { if (b.isConnected && b.dataset.armed) { delete b.dataset.armed; b.textContent = b.dataset.orig; } }, 4000);
+    return;
+  }
+  delete b.dataset.armed; b.disabled = true;
+  try { await api('dev_test_reset'); toast('ลบข้อมูลทดสอบแล้ว'); await refresh(); } catch (err) { toast(err.message); b.disabled = false; b.textContent = b.dataset.orig; }
+});
+boot();
+</script>
+</body>
+</html>
