@@ -272,7 +272,7 @@ function makePhoto(file, lines) {
           g.fillStyle = grd; g.fillRect(0, h - band, w, band);
           lines.forEach((t, i) => {
             const first = i === 0;
-            g.fillStyle = first ? '#FFC629' : '#FFFFFF';
+            g.fillStyle = first ? '#FF9440' : '#FFFFFF';
             g.font = `${first ? 700 : 600} ${first ? Math.round(fs * 1.2) : fs}px Sarabun, sans-serif`;
             g.fillText(t, Math.round(fs * 0.8), h - fs * 0.75 - (lines.length - 1 - i) * fs * 1.5);
           });

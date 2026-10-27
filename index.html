@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>A&amp;J เช็คอิน</title>
-<meta name="theme-color" content="#FFC629">
+<meta name="theme-color" content="#0A3D82">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=IBM+Plex+Mono:wght@500;600&family=Sarabun:wght@400;500;600;700&display=swap">
@@ -12,10 +12,11 @@
 /* Layout: one phone-width column inside LINE. Header band, scrolling content, fixed bottom menu.
    Sized for older readers: looped Thai face, 17px base, 48px+ touch targets, high-contrast tokens. */
 :root{
-  --bg:#F2F4F6; --surface:#FFFFFF; --surface-2:#EEF1F4; --ink:#0F1B26; --muted:#3E4B58; --line:#C9D1D9; --rule:#8C99A6;
-  --sign:#FFC629; --sign-ink:#0F1B26;
-  --action:#1450B4; --action-ink:#FFFFFF; --action-soft:#E3ECFA;
-  --ok:#0B6B3E; --ok-bg:#DCF1E5; --warn:#7A4500; --warn-bg:#FCE9C4; --bad:#A3241B; --bad-bg:#FADFDB; --idle-bg:#E6EAEE;
+  --bg:#F0F4F9; --surface:#FFFFFF; --surface-2:#E8EEF6; --ink:#0B1B2E; --muted:#3A4A5E; --line:#C5D1DF; --rule:#8494A8;
+  --brand:#0A3D82; --brand-ink:#FFFFFF; --brand-sub:#C9D8EE; --brand-line:rgb(255 255 255 / .45);
+  --sign:#F58220; --sign-ink:#0A2647;
+  --action:#0F57B8; --action-ink:#FFFFFF; --action-soft:#E2ECFA;
+  --ok:#0B6B3E; --ok-bg:#DCF1E5; --warn:#A04800; --warn-bg:#FDE9D6; --bad:#A3241B; --bad-bg:#FADFDB; --idle-bg:#E4EAF2;
   --scrim:rgb(10 16 22 / .55);
   --font-body:"Sarabun","Noto Sans Thai Looped","Leelawadee UI",Tahoma,sans-serif;
   --font-sign:"Chakra Petch","Sarabun",system-ui,sans-serif;
@@ -23,9 +24,10 @@
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){ :root{
-  --bg:#0D141A; --surface:#151F28; --surface-2:#1C2833; --ink:#F0F4F7; --muted:#B6C2CD; --line:#33414E; --rule:#5D6C7A;
-  --sign:#F5C22A; --sign-ink:#0F1B26; --action:#6FA6FF; --action-ink:#08121E; --action-soft:#1A2B45;
-  --ok:#5DD39B; --ok-bg:#123227; --warn:#F5B85A; --warn-bg:#382811; --bad:#FF8A80; --bad-bg:#3A1B19; --idle-bg:#24313D;
+  --bg:#0A1320; --surface:#111D2D; --surface-2:#182638; --ink:#EEF3F9; --muted:#B3C1D2; --line:#2C3C52; --rule:#56677E;
+  --brand:#0F2C55; --brand-ink:#FFFFFF; --brand-sub:#B5C7E0; --brand-line:rgb(255 255 255 / .35);
+  --sign:#FF9440; --sign-ink:#0A2647; --action:#6EA8FF; --action-ink:#06111F; --action-soft:#16294A;
+  --ok:#5DD39B; --ok-bg:#123227; --warn:#FFB067; --warn-bg:#3A2410; --bad:#FF8A80; --bad-bg:#3A1B19; --idle-bg:#22324A;
   --scrim:rgb(0 0 0 / .65); color-scheme:dark;
 }}
 html{font-size:106.25%}
@@ -45,15 +47,16 @@ img{max-width:100%}
 
 /* frame */
 .wrap{max-width:720px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.top{background:var(--surface);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.top{background:var(--brand);color:var(--brand-ink);border-bottom:4px solid var(--sign);padding-top:env(safe-area-inset-top,0px)}
+.top .btn{background:transparent;border-color:var(--brand-line);color:var(--brand-ink)}
 .top .wrap{display:flex;align-items:center;gap:10px 12px;flex-wrap:wrap;padding-block:10px}
 .brand{display:flex;align-items:center;gap:10px;margin-right:auto;min-width:0}
 .mark{width:40px;height:40px;border-radius:8px;background:var(--sign);color:var(--sign-ink);display:grid;place-items:center;flex:none;font-family:var(--font-sign);font-weight:700;font-size:1rem}
 .brand-name{font-weight:700;font-size:1.1rem;line-height:1.25}
-.brand-sub{font-size:.88rem;color:var(--muted)}
-.size-switch{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface-2)}
-.size-switch button{appearance:none;border:0;background:transparent;padding:4px 10px;min-height:40px;cursor:pointer;font-weight:600;color:var(--muted)}
-.size-switch button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.brand-sub{font-size:.88rem;color:var(--brand-sub)}
+.size-switch{display:inline-flex;border:1px solid var(--brand-line);border-radius:10px;overflow:hidden;background:transparent}
+.size-switch button{appearance:none;border:0;background:transparent;padding:4px 10px;min-height:40px;cursor:pointer;font-weight:600;color:var(--brand-ink)}
+.size-switch button[aria-pressed="true"]{background:var(--brand-ink);color:var(--brand)}
 .size-switch .lg{font-size:1.15em}
 main{padding-block:16px calc(110px + env(safe-area-inset-bottom,0px))}
 main.no-nav{padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
