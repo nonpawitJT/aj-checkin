@@ -188,7 +188,11 @@ function shell(content) {
   return topbar(sub, extra) + `<main class="wrap" id="main">${content}</main><nav class="nav" aria-label="เมนู"><div class="wrap">${nav}</div></nav>`;
 }
 function view() { return S.mode === 'admin' ? VIEWS['adm_' + S.adm] : VIEWS['st_' + S.tab]; }
-function paint() { setApp(shell(view().render())); }
+function paint() {
+  setApp(shell(view().render()));
+  const sel = document.querySelector('.rday[aria-pressed="true"]');
+  if (sel && sel.parentElement) { const box = sel.parentElement; box.scrollLeft = sel.offsetLeft - box.offsetLeft - (box.clientWidth - sel.offsetWidth) / 2; }
+}
 async function load() {
   const v = view(), ticket = ++S.ticket;
   setApp(shell('<p class="loading">กำลังโหลด…</p>'));
@@ -543,10 +547,10 @@ VIEWS.adm_roster = ROSTER;
 VIEWS.st_roster = ROSTER;
 function rosterHTML() {
   const r = S.roster, ro = r.roster, items = r.items || [], date = r.date, admin = r.can_approve;
-  const status = ro && items.length ? ro.status : null;
+  const status = ro ? ro.status : null;
   const readOnly = date < r.today && !admin;
   const strip = (r.days || []).map((x) => {
-    const d = parseD(x.date), st = x.items ? (x.status || 'draft') : null;
+    const d = parseD(x.date), st = x.status || (x.items ? 'draft' : null);
     return `<button type="button" data-act="ros-day" data-d="${x.date}" aria-pressed="${x.date === date}" class="rday ${st || 'none'}${x.date === r.today ? ' today' : ''}">
       <span>${x.date === r.today ? 'วันนี้' : `${DOW[d.getDay()]}.`}</span><b>${d.getDate()}</b><small>${st ? ROSTER_STATUS[st][0].split(' ')[0] : 'ยังไม่จัด'}</small></button>`;
   }).join('');
@@ -560,8 +564,8 @@ function rosterHTML() {
     : `<section class="panel ros-pad"><label class="lbl" for="ros-notes">ประกาศ / ไฟลท์ของวันนี้</label>
         <textarea id="ros-notes" maxlength="600" placeholder="เช่น มี 6 ไฟลท์ ไม่รวม CIQ&#10;พรุ่งนี้อนามัยมาตรวจ B3 B7 B19">${esc((ro && ro.notes) || '')}</textarea>
         <button class="btn" type="button" data-act="ros-notes" style="justify-self:start">บันทึกประกาศ</button></section>`;
-  if (!items.length) {
-    const src = r.sources || {};
+  const src = r.sources || {};
+  if (!items.length && !ro) {
     const start = readOnly ? '<p class="panel empty">ไม่มีตารางของวันนี้</p>'
       : `<section class="panel ros-pad"><h3 class="section-title">เริ่มจัดตาราง</h3><p class="note">เลือกจุดเริ่มต้น แล้วค่อยแก้ทีละคน</p>
         <div class="row-btns">${src.yesterday ? '<button class="btn solid" type="button" data-act="ros-init" data-src="yesterday">คัดลอกจากเมื่อวาน</button>' : ''}
@@ -585,14 +589,18 @@ function rosterHTML() {
   const missing = (r.people || []).filter((p) => !inRoster.has(p.id));
   const missingHTML = missing.length && !readOnly ? `<section class="panel"><div class="shop-head"><b>ยังไม่ได้ลงตาราง</b><span class="note">${missing.length} คน · แตะเพื่อเพิ่ม</span></div>
     <div class="chips">${missing.map((p) => `<button class="pchip" type="button" data-act="ros-add" data-pid="${esc(p.id)}" data-shop="${esc(p.shop_code || '')}">${esc(p.nickname)}${p.shop_code ? ` <small>${esc(p.shop_code)}</small>` : ''}</button>`).join('')}</div></section>` : '';
+  const emptyHint = !items.length && !readOnly ? `<section class="panel ros-pad"><b>ตารางยังว่าง</b><p class="note">แตะชื่อในกล่อง "ยังไม่ได้ลงตาราง" ด้านล่าง หรือกด "+ เพิ่มคนในร้าน" ทีละร้าน</p>
+    ${src.yesterday || src.lastweek ? `<div class="row-btns">${src.yesterday ? '<button class="btn" type="button" data-act="ros-init" data-src="yesterday">คัดลอกจากเมื่อวานแทน</button>' : ''}${src.lastweek ? '<button class="btn" type="button" data-act="ros-init" data-src="lastweek">คัดลอกจากสัปดาห์ก่อนแทน</button>' : ''}</div>` : ''}</section>` : '';
   let main = '';
-  if (status === 'approved') main = `<p class="note center">${admin ? 'แก้ไขต่อได้ ระบบใช้ฉบับใหม่ทันที' : 'ถ้าแก้ไข ต้องส่งให้ผู้จัดการอนุมัติใหม่'}</p>`;
-  else if (admin) main = '<button class="btn-primary good" type="button" data-act="ros-approve" data-confirm="แตะอีกครั้งเพื่ออนุมัติ">อนุมัติตารางนี้</button>';
+  if (!items.length) main = '<p class="note center">เพิ่มคนในตารางก่อน แล้วค่อยส่งให้ผู้จัดการตรวจ</p>';
+  else if (status === 'approved') main = `<p class="note center">${admin ? 'แก้ไขต่อได้ ระบบใช้ฉบับใหม่ทันที' : 'ถ้าแก้ไข ต้องส่งให้ผู้จัดการอนุมัติใหม่'}</p>`;
+  else if (admin) main = `<p class="note center">${status === 'submitted' ? `${esc(ro.submitted_by || 'ผู้จัดเวร')} ส่งมาให้ตรวจ ดูแล้วกดอนุมัติ` : 'คุณเป็นผู้จัดการ จัดเองแล้วอนุมัติได้เลย ไม่ต้องส่งตรวจ'}</p>
+    <button class="btn-primary good" type="button" data-act="ros-approve" data-confirm="แตะอีกครั้งเพื่ออนุมัติ">อนุมัติตารางนี้ ให้พนักงานเห็นกะ</button>`;
   else if (status === 'submitted') main = '<p class="note center">ส่งแล้ว รอผู้จัดการอนุมัติ ยังแก้ไขได้</p>';
   else main = '<button class="btn-primary" type="button" data-act="ros-submit">ส่งให้ผู้จัดการตรวจ</button>';
-  const actions = `<div class="ros-actions"><div class="row-btns"><button class="btn" type="button" data-act="ros-image">ดูรูปตาราง</button>
-    <button class="btn" type="button" data-act="ros-share">ส่งข้อความเข้า LINE</button></div>${readOnly ? '' : main}</div>`;
-  return rosterFrame(r, strip, statusBox, `${notes}${offHTML}<div class="shop-grid">${shops}</div>${missingHTML}${actions}`);
+  const actions = `<div class="ros-actions">${items.length ? `<div class="row-btns"><button class="btn" type="button" data-act="ros-image">ดูรูปตาราง</button>
+    <button class="btn" type="button" data-act="ros-share">ส่งข้อความเข้า LINE</button></div>` : ''}${readOnly ? '' : main}</div>`;
+  return rosterFrame(r, strip, statusBox, `${notes}${emptyHint}${offHTML}<div class="shop-grid">${shops}</div>${missingHTML}${actions}`);
 }
 function rosterFrame(r, strip, statusBox, body) {
   return `<div class="stack"><div class="view-head"><div><h1 class="view-title">จัดเวร</h1>
@@ -1109,13 +1117,29 @@ const ACT = {
         <div class="sheet-actions">${inLine ? '' : `<a class="btn solid" href="${url}" download="ตารางงาน-${S.roster.date}.png">ดาวน์โหลดรูป</a>`}<button class="btn" type="button" data-act="close">ปิด</button></div>`);
     } catch (e) { console.error('roster image', e); toast('ทำรูปไม่สำเร็จ ลองอีกครั้ง'); }
   }),
-  'ros-share': async () => {
-    const text = rosterText();
-    if (window.liff && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker')) {
-      try { const res = await liff.shareTargetPicker([{ type: 'text', text }]); if (res) toast('ส่งแล้ว'); return; } catch (e) { /* fall back to copy */ }
-    }
-    copyText(text, 'คัดลอกข้อความแล้ว ไปวางในกลุ่ม LINE ได้เลย');
+  'ros-share': () => {
+    const canPick = !!(window.liff && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker'));
+    sheet(`<h3>ข้อความตารางเวร</h3>
+      <p class="note">${canPick ? 'กด "เลือกกลุ่ม LINE แล้วส่ง" แล้วติ๊กกลุ่มร้านที่จะส่ง ข้อความจะส่งในชื่อ LINE ของคุณ' : 'กด "คัดลอกข้อความ" แล้วไปวางในกลุ่ม LINE เอง'}</p>
+      <textarea id="copy-area" rows="12" readonly>${esc(rosterText())}</textarea>
+      <div class="sheet-actions"><button class="btn" type="button" data-act="close">ปิด</button><span class="spacer"></span>
+        <button class="btn${canPick ? '' : ' solid'}" type="button" data-act="ros-copy">คัดลอกข้อความ</button>
+        ${canPick ? '<button class="btn solid" type="button" data-act="ros-pick">เลือกกลุ่ม LINE แล้วส่ง</button>' : ''}</div>`);
   },
+  'ros-copy': () => {
+    const ta = $('#copy-area'), text = ta ? ta.value : rosterText();
+    const manual = () => { if (ta) { ta.focus(); ta.select(); } toast('กดค้างที่ข้อความ แล้วเลือกคัดลอก'); };
+    try { navigator.clipboard.writeText(text).then(() => toast('คัดลอกแล้ว ไปวางในกลุ่ม LINE ได้เลย'), manual); } catch (e) { manual(); }
+  },
+  'ros-pick': async (el) => {
+    el.disabled = true;
+    try {
+      const res = await liff.shareTargetPicker([{ type: 'text', text: rosterText() }]);
+      if (res) { closeSheet(); toast('ส่งเข้า LINE แล้ว'); }
+    } catch (e) { toast('ส่งไม่สำเร็จ ใช้ปุ่มคัดลอกข้อความแทน'); }
+    el.disabled = false;
+  },
+
 
   absent: (el) => busy(el, async () => {
     try {
