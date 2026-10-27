@@ -120,6 +120,9 @@ async function loadMe() {
   S.me = r.person;
   route();
 }
+// Rich menu buttons open the app with ?tab=today|shifts|history
+let deepLink = null;
+try { deepLink = new URLSearchParams(location.search).get('tab'); } catch (e) { /* ignore */ }
 function route() {
   const p = S.me;
   if (!p) return renderPhone('');
@@ -127,6 +130,11 @@ function route() {
   if (p.status === 'inactive') return renderInactive();
   if (p.role !== 'admin') S.mode = 'staff';
   else if (!S.mode || (S.mode === 'staff' && !p.shop_code)) S.mode = 'admin';
+  if (deepLink) {
+    if (S.mode === 'staff' && ['today', 'shifts', 'history'].includes(deepLink)) S.tab = deepLink;
+    else if (S.mode === 'admin') S.adm = { today: 'board', shifts: 'plan', history: 'summary' }[deepLink] || S.adm;
+    deepLink = null;
+  }
   load();
 }
 
