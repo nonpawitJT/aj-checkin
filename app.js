@@ -20,7 +20,7 @@ const be = (y) => y + 543;
 const dShort = (k) => { const d = parseD(k); return `${DOW[d.getDay()]}. ${d.getDate()} ${MONTHS_S[d.getMonth()]}`; };
 const dLong = (k) => `${dShort(k)} ${be(parseD(k).getFullYear())}`;
 const dSlash = (k) => { const d = parseD(k); return `${d.getDate()}/${d.getMonth() + 1}/${String(be(d.getFullYear())).slice(-2)}`; };
-const hm = (t) => (t ? String(t).slice(0, 5).replace(/^0(\d)/, '$1').replace(':', '.') : '');
+const hm = (t) => (t ? String(t).slice(0, 5).replace(/^0(\d)/, '$1') : '');
 const toMin = (t) => { const p = String(t).split(':'); return (+p[0]) * 60 + (+p[1]); };
 const mondayOf = (k) => addDays(k, -((parseD(k).getDay() + 6) % 7));
 const monthLabel = (ym) => `${MONTHS[+ym.slice(5, 7) - 1]} ${be(+ym.slice(0, 4))}`;
@@ -31,7 +31,6 @@ const fmtPhone = (p) => (p && p.length === 10 ? `${p.slice(0, 3)}-${p.slice(3, 6
 const durText = (m) => { const h = Math.floor(m / 60), r = m % 60; return h ? `${h} ชม.${r ? ` ${r} นาที` : ''}` : `${r} นาที`; };
 const shiftText = (d) => (d.off ? 'หยุด' : (d.has_shift || d.start) ? `${hm(d.start)}–${d.open_end ? 'จนลูกค้าหมด' : hm(d.end)}` : 'ยังไม่จัดกะ');
 const DOW_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
-const hs = (t) => { if (!t) return ''; const p = String(t).slice(0, 5).split(':'); return `${+p[0]}${p[1] === '00' ? '' : '.' + p[1]}`; };
 const thaiDay = (k) => { const d = parseD(k); return `วัน${DOW_FULL[d.getDay()]}ที่ ${d.getDate()} ${MONTHS_S[d.getMonth()]} ${String(be(d.getFullYear())).slice(-2)}`; };
 const fmtStamp = (s) => { if (!s) return ''; const d = String(s).slice(0, 10), t = String(s).slice(11, 16); return `${parseD(d).getDate()} ${MONTHS_S[parseD(d).getMonth()]} ${hm(t)}`; };
 const ACT_AS = (() => { try { return new URLSearchParams(location.search).get('as') || ''; } catch (e) { return ''; } })();
@@ -47,6 +46,7 @@ const ICON = {
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   person: '<circle cx="10" cy="8" r="4"/><path d="M3 21c1-4 3.8-6 7-6s6 2 7 6M19 8v6M16 11h6"/>',
   cam: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/>',
   clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
 };
 const LOGO = '<img class="logo" src="logo-96.png" srcset="logo-96.png 1x, logo-192.png 2x" alt="A&amp;J group" width="44" height="44">';
@@ -180,7 +180,7 @@ function shell(content) {
   const p = S.me, admin = S.mode === 'admin';
   const sub = admin ? `ผู้จัดการ · ${esc(p.nickname)}` : `${esc(p.nickname)} · ร้าน ${esc(p.shop_code || '-')}`;
   const extra = p.role === 'admin' && p.shop_code ? `<button class="btn" type="button" data-act="mode">${admin ? 'ลงเวลาของฉัน' : 'หลังบ้าน'}</button>` : '';
-  const cur = admin ? (S.adm === 'person' ? S.personBack : S.adm === 'plan' ? 'roster' : S.adm) : S.tab;
+  const cur = admin ? (S.adm === 'person' ? S.personBack : S.adm === 'plan' ? 'roster' : S.adm) : (S.tab === 'plan' ? 'roster' : S.tab);
   const nav = navItems().map(([k, label, ic]) => {
     const badge = admin ? S.badges[k] || 0 : 0;
     return `<button type="button" data-act="tab" data-t="${k}"${cur === k ? ' aria-current="page"' : ''}>${svg(ic)}<span>${label}</span>${badge ? `<span class="dot">${badge}</span>` : ''}</button>`;
@@ -351,7 +351,7 @@ function renderInactive() {
 }
 
 /* ---------------------------------------------------------------- staff views */
-function clockText() { const d = new Date(); return `${d.getHours()}.${pad(d.getMinutes())}`; }
+function clockText() { const d = new Date(); return `${d.getHours()}:${pad(d.getMinutes())}`; }
 function slot(kind, d) {
   const t = d[kind], photo = d[kind + '_photo'], label = kind === 'in' ? 'เข้างาน' : 'ออกงาน';
   if (!t) return `<div class="slot"><div class="shot ph">${svg('cam', 34)}</div><div><span class="k">${label}</span><span class="slot-v num">—</span></div></div>`;
@@ -520,10 +520,54 @@ function openPunchEdit(id, kind) {
       <button class="btn" type="button" data-act="close">ยกเลิก</button><button class="btn solid" type="button" data-act="punch-save">บันทึก</button></div>`);
 }
 
-/* ---------------------------------------------------------------- roster (จัดเวร) */
+/* ---------------------------------------------------------------- roster (จัดเวร) — shop timelines */
 const ROSTER_DEFAULTS = [['06:30', '16:30', false], ['07:00', '18:00', false], ['07:30', null, true], ['10:00', '21:00', false], ['10:30', '20:30', false], ['11:00', '21:00', false], ['18:00', null, true]];
-const ROSTER_STATUS = { draft: ['ร่าง ยังไม่ส่ง', ''], submitted: ['รออนุมัติ', 'warn'], approved: ['อนุมัติแล้ว', 'ok'] };
-const rosterTime = (i) => (i.off ? 'หยุด' : `${hs(i.start)} - ${i.open_end ? 'จนลูกค้าหมด' : hs(i.end)}`);
+const ROSTER_STATUS = { draft: ['ร่าง ยังไม่ส่ง', ''], submitted: ['รออนุมัติ', 'warn'], approved: ['อนุมัติแล้ว', 'ok'], live: ['มีกะในระบบ', 'ok'] };
+const OPEN_END = 'จนลูกค้าหมด';
+const rosterTime = (i) => (i.off ? 'หยุด' : `${hm(i.start)} – ${i.open_end ? OPEN_END : hm(i.end)}`);
+const hrs = (t) => { const p = String(t).split(':'); return (+p[0]) + (+p[1]) / 60; };
+const decHm = (h) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)}:${pad(m % 60)}`; };
+const decKey = (h) => { const m = Math.round(h * 60) % 1440; return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`; };
+function span(start, end, open) {
+  const a = hrs(start);
+  let b = open || !end ? 24 : hrs(end);
+  if (b <= a) b += 24;
+  return [a, Math.min(b, 24)];
+}
+const shopOf = (code) => S.shops.find((s) => s.code === code) || { code };
+const shopHours = (s) => (s && s.open ? span(s.open, s.close, !s.close) : null);
+const hoursText = (s) => (s && s.open ? `${hm(s.open)} – ${s.close ? hm(s.close) : OPEN_END}` : '');
+/* Where a shop is open but nobody is rostered. Without opening hours we only know "nobody at all". */
+function shopGaps(code, list) {
+  const s = shopOf(code), h = shopHours(s);
+  if (!h) return list.length ? [] : [{ a: null, b: null, all: true }];
+  const iv = list.map((i) => span(i.start, i.end, i.open_end)).sort((x, y) => x[0] - y[0]);
+  const out = [];
+  let cur = h[0];
+  iv.forEach(([a, b]) => { if (a - cur >= 0.25) out.push({ a: cur, b: Math.min(a, h[1]) }); cur = Math.max(cur, b); });
+  if (h[1] - cur >= 0.25) out.push({ a: cur, b: h[1] });
+  return out.filter((g) => g.b - g.a >= 0.25).map((g) => Object.assign(g, { all: !list.length, openEnd: g.b >= 24 && !s.close }));
+}
+const gapText = (g) => (g.a == null ? 'ทั้งวัน' : g.all ? 'ทั้งวัน' : `${decHm(g.a)} – ${g.openEnd ? OPEN_END : decHm(g.b)}`);
+function axisFrom(items) {
+  let lo = 6;
+  items.forEach((i) => { if (!i.off && i.start) lo = Math.min(lo, Math.floor(hrs(i.start))); });
+  S.shops.forEach((s) => { if (s.open) lo = Math.min(lo, Math.floor(hrs(s.open))); });
+  return Math.max(0, lo);
+}
+const pctOf = (h, lo) => +(((h - lo) / (24 - lo)) * 100).toFixed(2);
+function axisHTML(lo, cls, step, short) {
+  const ticks = [];
+  for (let h = lo; h <= 24; h += step || 3) ticks.push(h);
+  if (ticks[ticks.length - 1] !== 24) ticks.push(24);
+  return `<div class="${cls}" aria-hidden="true">${ticks.map((h, i) => `<span style="left:${pctOf(h, lo)}%"${i === 0 ? ' class="first"' : h === 24 ? ' class="last"' : ''}>${short ? h : `${h}:00`}</span>`).join('')}</div>`;
+}
+const byStart = (a, b) => (a.start || '').localeCompare(b.start || '') || String(a.name).localeCompare(String(b.name), 'th');
+function gridLines(lo) {
+  let out = '';
+  for (let h = lo + 3; h < 24; h += 3) out += `<i class="tl-grid" style="left:${pctOf(h, lo)}%"></i>`;
+  return out;
+}
 function rosterPresets() {
   const out = [], seen = new Set();
   const add = (st, en, open) => {
@@ -545,25 +589,30 @@ const ROSTER = {
 };
 VIEWS.adm_roster = ROSTER;
 VIEWS.st_roster = ROSTER;
+function dayWord(date, today) {
+  if (date === today) return 'วันนี้';
+  if (date === addDays(today, 1)) return 'พรุ่งนี้';
+  if (date === addDays(today, -1)) return 'เมื่อวาน';
+  return '';
+}
 function rosterHTML() {
   const r = S.roster, ro = r.roster, items = r.items || [], date = r.date, admin = r.can_approve;
   const status = ro ? ro.status : null;
   const readOnly = date < r.today && !admin;
-  const strip = (r.days || []).map((x) => {
-    const d = parseD(x.date), st = x.status || (x.items ? 'draft' : null);
-    return `<button type="button" data-act="ros-day" data-d="${x.date}" aria-pressed="${x.date === date}" class="rday ${st || 'none'}${x.date === r.today ? ' today' : ''}">
-      <span>${x.date === r.today ? 'วันนี้' : `${DOW[d.getDay()]}.`}</span><b>${d.getDate()}</b><small>${st ? ROSTER_STATUS[st][0].split(' ')[0] : 'ยังไม่จัด'}</small></button>`;
-  }).join('');
+  const word = dayWord(date, r.today);
   let meta = '';
   if (status === 'approved') meta = `อนุมัติโดย ${esc(ro.approved_by || '-')} ${esc(fmtStamp(ro.approved_at))} · พนักงานเห็นกะแล้ว`;
-  else if (status === 'submitted') meta = `ส่งโดย ${esc(ro.submitted_by || '-')} ${esc(fmtStamp(ro.submitted_at))} · รอผู้จัดการอนุมัติ`;
+  else if (status === 'submitted') meta = `ส่งโดย ${esc(ro.submitted_by || '-')} ${esc(fmtStamp(ro.submitted_at))}`;
   else if (status === 'draft') meta = `แก้ล่าสุดโดย ${esc(ro.updated_by || '-')} ${esc(fmtStamp(ro.updated_at))}${ro.approved_at ? ' · <b class="t-warn">แก้หลังอนุมัติ พนักงานยังเห็นตารางเดิมจนกว่าจะอนุมัติใหม่</b>' : ''}`;
-  const statusBox = `<div class="panel ros-status">${status ? `<span class="chip ${ROSTER_STATUS[status][1]}">${ROSTER_STATUS[status][0]}</span>` : '<span class="chip">ยังไม่ได้จัด</span>'}${meta ? `<span class="note">${meta}</span>` : ''}</div>`;
-  const notes = readOnly
-    ? (ro && ro.notes ? `<section class="panel ros-pad"><b>ประกาศ</b><p>${esc(ro.notes).replace(/\n/g, '<br>')}</p></section>` : '')
-    : `<section class="panel ros-pad"><label class="lbl" for="ros-notes">ประกาศ / ไฟลท์ของวันนี้</label>
-        <textarea id="ros-notes" maxlength="600" placeholder="เช่น มี 6 ไฟลท์ ไม่รวม CIQ&#10;พรุ่งนี้อนามัยมาตรวจ B3 B7 B19">${esc((ro && ro.notes) || '')}</textarea>
-        <button class="btn" type="button" data-act="ros-notes" style="justify-self:start">บันทึกประกาศ</button></section>`;
+  const pill = status ? `<span class="chip ${ROSTER_STATUS[status][1]}">${ROSTER_STATUS[status][0]}</span>` : '<span class="chip">ยังไม่ได้จัด</span>';
+  const dateBar = `<div class="ros-date panel">
+      <button class="icon-btn" type="button" data-act="ros-day" data-d="${addDays(date, -1)}" aria-label="วันก่อนหน้า">‹</button>
+      <div class="ros-date-mid"><span class="k">${word ? `${word} · ` : ''}${pill}</span><strong>${thaiDay(date)}</strong></div>
+      <button class="icon-btn" type="button" data-act="ros-day" data-d="${addDays(date, 1)}" aria-label="วันถัดไป">›</button>
+    </div>${meta ? `<p class="note ros-meta">${meta}</p>` : ''}`;
+  const head = `<div class="view-head"><div><h1 class="view-title">จัดเวร</h1>
+      <p class="note">${admin ? 'ตรวจตารางแล้วกดอนุมัติ พนักงานจะเห็นกะทันที' : 'จัดตารางของวันรุ่งขึ้น แล้วกดส่งให้ผู้จัดการตรวจ'}</p></div>
+      <button class="btn" type="button" data-act="go-week">ดูทั้งสัปดาห์</button></div>`;
   const src = r.sources || {};
   if (!items.length && !ro) {
     const start = readOnly ? '<p class="panel empty">ไม่มีตารางของวันนี้</p>'
@@ -571,52 +620,85 @@ function rosterHTML() {
         <div class="row-btns">${src.yesterday ? '<button class="btn solid" type="button" data-act="ros-init" data-src="yesterday">คัดลอกจากเมื่อวาน</button>' : ''}
         ${src.lastweek ? '<button class="btn" type="button" data-act="ros-init" data-src="lastweek">คัดลอกจากวันเดียวกันสัปดาห์ก่อน</button>' : ''}
         <button class="btn" type="button" data-act="ros-init" data-src="empty">เริ่มตารางว่าง</button></div></section>`;
-    return rosterFrame(r, strip, statusBox, notes + start);
+    return `<div class="stack">${head}${dateBar}${start}</div>`;
   }
-  const off = items.filter((i) => i.off);
-  const offHTML = `<section class="panel"><div class="shop-head"><b class="t-bad">หยุด</b><span class="note">${off.length} คน</span></div>
-    <div class="chips">${off.map((i) => `<button class="pchip" type="button" data-act="ros-edit" data-id="${esc(i.id)}"${readOnly ? ' disabled' : ''}>${esc(i.name)}</button>`).join('')}
-    ${readOnly ? '' : '<button class="pchip add" type="button" data-act="ros-add" data-off="1">+ เพิ่มคนหยุด</button>'}</div></section>`;
-  const shops = S.shops.map((s) => {
-    const list = items.filter((i) => !i.off && i.shop_code === s.code);
-    const rows = list.map((i) => `<li><button class="item ros-row" type="button" data-act="ros-edit" data-id="${esc(i.id)}"${readOnly ? ' disabled' : ''}>
-      <span class="item-main"><span class="item-line"><span class="item-name">${esc(i.name)}</span>${i.guest ? '<span class="tag">ยังไม่อยู่ในระบบ</span>' : ''}${i.home_shop && i.home_shop !== i.shop_code ? `<span class="tag">มาจาก ${esc(i.home_shop)}</span>` : ''}</span>
-      ${i.note ? `<span class="item-sub">${esc(i.note)}</span>` : ''}</span><span class="ros-time">${rosterTime(i)}</span></button></li>`).join('');
-    return `<section class="panel"><div class="shop-head">${shopGate(s.code)}<span class="note">${list.length} คน</span></div>
-      ${rows ? `<ul class="list">${rows}</ul>` : ''}${readOnly ? '' : `<button class="btn quiet ros-add" type="button" data-act="ros-add" data-shop="${esc(s.code)}">+ เพิ่มคนในร้าน ${esc(s.code)}</button>`}</section>`;
+
+  const lo = axisFrom(items);
+  const allGaps = [];
+  const wide = isWide();
+  const rows = S.shops.map((s, si) => {
+    const list = items.filter((i) => !i.off && i.shop_code === s.code).sort(byStart);
+    const gaps = shopGaps(s.code, list);
+    gaps.forEach((g) => allGaps.push(`${s.code} ${gapText(g)}`));
+    const h = shopHours(s);
+    const lanes = Math.max(1, list.length);
+    const hoursBtn = admin
+      ? `<button class="tl-hours" type="button" data-act="shop-hours" data-s="${esc(s.code)}">${h ? `เปิด ${hoursText(s)}` : 'ตั้งเวลาเปิดร้าน'}</button>`
+      : `<span class="tl-hours">${h ? `เปิด ${hoursText(s)}` : ''}</span>`;
+    const note = gaps.length ? `<span class="tl-note bad">${gaps[0].all ? 'ไม่มีคน' : `ว่าง ${gapText(gaps[0])}`}${gaps.length > 1 ? ` +${gaps.length - 1}` : ''}</span>` : `<span class="tl-note">${list.length} คน</span>`;
+    const openSeg = h ? `<span class="tl-open" style="left:${pctOf(h[0], lo)}%;width:${(pctOf(h[1], lo) - pctOf(h[0], lo)).toFixed(2)}%"></span>` : '';
+    const gapEls = gaps.map((g) => {
+      const a = g.a == null ? lo : g.a, b = g.b == null ? 24 : g.b;
+      const attrs = readOnly ? 'disabled' : `data-act="ros-add" data-shop="${esc(s.code)}"${g.a != null ? ` data-start="${decKey(g.a)}"${g.openEnd ? ' data-open="1"' : ` data-end="${decKey(g.b)}"`}` : ''}`;
+      return `<button class="tl-gap" type="button" ${attrs} style="left:${pctOf(a, lo)}%;width:${(pctOf(b, lo) - pctOf(a, lo)).toFixed(2)}%" aria-label="ร้าน ${esc(s.code)} ไม่มีคน ${gapText(g)}"><span>${g.all ? `ไม่มีคน${readOnly ? '' : ' · แตะเพื่อเพิ่ม'}` : 'ว่าง'}</span></button>`;
+    }).join('');
+    const bars = list.map((i, k) => {
+      const [a, b] = span(i.start, i.end, i.open_end);
+      const w = pctOf(b, lo) - pctOf(a, lo), room = wide ? w * 3 : w;
+      const time = rosterTime(i);
+      const text = room >= 40 ? `<b>${esc(i.name)}</b> ${time}` : room >= 22 ? `<b>${esc(i.name)}</b> ${hm(i.start)}${i.open_end ? ' →' : ''}` : `<b>${esc(i.name)}</b>`;
+      const helping = i.home_shop && i.home_shop !== i.shop_code;
+      return `<button class="tl-bar${i.open_end ? ' open' : ''}${i.guest ? ' guest' : ''}" type="button" data-act="ros-edit" data-id="${esc(i.id)}"${readOnly ? ' disabled' : ''}
+        style="top:${4 + k * 34}px;left:${pctOf(a, lo)}%;width:${w.toFixed(2)}%" title="${esc(`${i.name} ${time}${helping ? ` · มาจาก ${i.home_shop}` : ''}${i.note ? ` · ${i.note}` : ''}`)}">${text}</button>`;
+    }).join('');
+    return `<div class="tl-shop"${si ? '' : ' style="border-top:0"'}>
+      <div class="tl-head">${shopGate(s.code)}${hoursBtn}${note}</div>
+      <div class="tl-lane${h ? ' timed' : ''}" style="height:${lanes * 34 + 6}px">${gridLines(lo)}${openSeg}${gapEls}${bars}</div></div>`;
   }).join('');
+
+  const off = items.filter((i) => i.off);
+  const offRow = `<div class="tl-off"><b>หยุด</b><div class="chips">${off.map((i) => `<button class="pchip" type="button" data-act="ros-edit" data-id="${esc(i.id)}"${readOnly ? ' disabled' : ''}>${esc(i.name)}</button>`).join('') || '<span class="note">ไม่มี</span>'}
+      ${readOnly ? '' : '<button class="pchip add" type="button" data-act="ros-add" data-off="1">+ เพิ่มคนหยุด</button>'}</div></div>`;
+  const banner = !items.length ? ''
+    : allGaps.length ? `<div class="banner bad static">ร้านเปิดแต่ไม่มีคน ${allGaps.length} จุด: ${esc(allGaps.join(' · '))}</div>`
+      : '<div class="banner ok static">ทุกร้านมีคนครบตามเวลาเปิด</div>';
+  const notes = ro && ro.notes
+    ? `<button class="ros-notes" type="button" data-act="ros-notes-edit"${readOnly ? ' disabled' : ''}>${svg('flag')}<span>${esc(ro.notes).replace(/\n/g, '<br>')}</span>${readOnly ? '' : '<em>แก้</em>'}</button>`
+    : readOnly ? '' : '<button class="ros-notes empty" type="button" data-act="ros-notes-edit">+ เพิ่มประกาศ / ไฟลท์ของวันนี้</button>';
   const inRoster = new Set(items.filter((i) => i.person_id).map((i) => i.person_id));
   const missing = (r.people || []).filter((p) => !inRoster.has(p.id));
-  const missingHTML = missing.length && !readOnly ? `<section class="panel"><div class="shop-head"><b>ยังไม่ได้ลงตาราง</b><span class="note">${missing.length} คน · แตะเพื่อเพิ่ม</span></div>
+  const missingHTML = missing.length && !readOnly ? `<section class="ros-missing"><b>ยังไม่ลงตาราง</b> <span class="note">แตะชื่อเพื่อใส่</span>
     <div class="chips">${missing.map((p) => `<button class="pchip" type="button" data-act="ros-add" data-pid="${esc(p.id)}" data-shop="${esc(p.shop_code || '')}">${esc(p.nickname)}${p.shop_code ? ` <small>${esc(p.shop_code)}</small>` : ''}</button>`).join('')}</div></section>` : '';
-  const emptyHint = !items.length && !readOnly ? `<section class="panel ros-pad"><b>ตารางยังว่าง</b><p class="note">แตะชื่อในกล่อง "ยังไม่ได้ลงตาราง" ด้านล่าง หรือกด "+ เพิ่มคนในร้าน" ทีละร้าน</p>
-    ${src.yesterday || src.lastweek ? `<div class="row-btns">${src.yesterday ? '<button class="btn" type="button" data-act="ros-init" data-src="yesterday">คัดลอกจากเมื่อวานแทน</button>' : ''}${src.lastweek ? '<button class="btn" type="button" data-act="ros-init" data-src="lastweek">คัดลอกจากสัปดาห์ก่อนแทน</button>' : ''}</div>` : ''}</section>` : '';
+  const emptyHint = !items.length && !readOnly && (src.yesterday || src.lastweek) ? `<div class="row-btns">${src.yesterday ? '<button class="btn" type="button" data-act="ros-init" data-src="yesterday">คัดลอกจากเมื่อวานแทน</button>' : ''}${src.lastweek ? '<button class="btn" type="button" data-act="ros-init" data-src="lastweek">คัดลอกจากสัปดาห์ก่อนแทน</button>' : ''}</div>` : '';
+  const legend = `<div class="tl-legend"><span><i class="lg-bar"></i>มีคนอยู่</span><span><i class="lg-gap"></i>ร้านเปิดแต่ไม่มีคน</span><span><i class="lg-closed"></i>ร้านปิด</span><span><i class="lg-open"></i>${OPEN_END}</span></div>`;
+
   let main = '';
-  if (!items.length) main = '<p class="note center">เพิ่มคนในตารางก่อน แล้วค่อยส่งให้ผู้จัดการตรวจ</p>';
-  else if (status === 'approved') main = `<p class="note center">${admin ? 'แก้ไขต่อได้ ระบบใช้ฉบับใหม่ทันที' : 'ถ้าแก้ไข ต้องส่งให้ผู้จัดการอนุมัติใหม่'}</p>`;
-  else if (admin) main = `<p class="note center">${status === 'submitted' ? `${esc(ro.submitted_by || 'ผู้จัดเวร')} ส่งมาให้ตรวจ ดูแล้วกดอนุมัติ` : 'คุณเป็นผู้จัดการ จัดเองแล้วอนุมัติได้เลย ไม่ต้องส่งตรวจ'}</p>
-    <button class="btn-primary good" type="button" data-act="ros-approve" data-confirm="แตะอีกครั้งเพื่ออนุมัติ">อนุมัติตารางนี้ ให้พนักงานเห็นกะ</button>`;
-  else if (status === 'submitted') main = '<p class="note center">ส่งแล้ว รอผู้จัดการอนุมัติ ยังแก้ไขได้</p>';
+  if (readOnly) main = '';
+  else if (!items.length) main = '<span class="note">เพิ่มคนในตารางก่อน แล้วค่อยส่ง</span>';
+  else if (status === 'approved') main = `<span class="note">${admin ? 'อนุมัติแล้ว แก้ต่อได้ ระบบใช้ฉบับใหม่ทันที' : 'อนุมัติแล้ว ถ้าแก้ต้องส่งตรวจใหม่'}</span>`;
+  else if (admin) main = '<button class="btn-primary good" type="button" data-act="ros-approve" data-confirm="แตะอีกครั้งเพื่ออนุมัติ">อนุมัติตารางนี้</button>';
+  else if (status === 'submitted') main = '<span class="note">ส่งแล้ว รอผู้จัดการอนุมัติ ยังแก้ได้</span>';
   else main = '<button class="btn-primary" type="button" data-act="ros-submit">ส่งให้ผู้จัดการตรวจ</button>';
-  const actions = `<div class="ros-actions">${items.length ? `<div class="row-btns"><button class="btn" type="button" data-act="ros-image">ดูรูปตาราง</button>
-    <button class="btn" type="button" data-act="ros-share">ส่งข้อความเข้า LINE</button></div>` : ''}${readOnly ? '' : main}</div>`;
-  return rosterFrame(r, strip, statusBox, `${notes}${emptyHint}${offHTML}<div class="shop-grid">${shops}</div>${missingHTML}${actions}`);
-}
-function rosterFrame(r, strip, statusBox, body) {
-  return `<div class="stack"><div class="view-head"><div><h1 class="view-title">จัดเวร</h1>
-      <p class="note">${r.can_approve ? 'ตรวจตารางแล้วกดอนุมัติ พนักงานจะเห็นกะทันที' : 'จัดตารางของวันรุ่งขึ้น แล้วกดส่งให้ผู้จัดการตรวจ'}</p></div>
-      ${S.mode === 'admin' ? '<button class="btn" type="button" data-act="go-week">ภาพรวมทั้งสัปดาห์</button>' : ''}</div>
-    <div class="rdays" role="group" aria-label="เลือกวัน">${strip}</div>
-    <h2 class="section-title">ตารางงาน ${thaiDay(r.date)}</h2>${statusBox}${body}</div>`;
+  const bar = items.length || main ? `<div class="ros-bar">
+      ${items.length ? `<button class="ros-icon" type="button" data-act="ros-image">${svg('cam')}<span>รูป</span></button>
+      <button class="ros-icon" type="button" data-act="ros-share">${svg('chat')}<span>LINE</span></button>` : ''}
+      <div class="ros-main">${main}</div></div>` : '';
+  const adminHint = admin && !S.shops.some((s) => s.open) ? '<p class="note">ตั้งเวลาเปิด–ปิดของแต่ละร้านได้ โดยแตะ "ตั้งเวลาเปิดร้าน" ข้างชื่อร้าน ระบบจะบอกช่วงที่ร้านเปิดแต่ไม่มีคน</p>' : '';
+
+  return `<div class="stack ros">${head}${dateBar}${banner}${notes}${emptyHint}
+    <section class="panel tl">${axisHTML(lo, 'tl-axis')}${rows}${offRow}</section>
+    ${legend}${adminHint}${missingHTML}
+    ${readOnly ? '' : '<button class="btn wide dashed" type="button" data-act="ros-add">+ เพิ่มคนในตาราง</button>'}
+    ${bar}</div>`;
 }
 function openRosterItem(item, pre) {
   const r = S.roster, people = r.people || [];
   pre = pre || {};
   const e = item
     ? { id: item.id, pid: item.person_id || '__guest', guest: item.guest ? item.name : '', shop: item.shop_code || item.home_shop || '', off: !!item.off, start: item.start || '', end: item.end || '', open: !!item.open_end, note: item.note || '' }
-    : { id: '', pid: pre.pid || '', guest: '', shop: pre.shop || '', off: !!pre.off, start: '', end: '', open: false, note: '' };
+    : { id: '', pid: pre.pid || '', guest: '', shop: pre.shop || '', off: !!pre.off, start: pre.start || '', end: pre.end || '', open: !!pre.open, note: '' };
   e.presets = rosterPresets();
-  if (!item && !e.off && e.presets.length) Object.assign(e, { start: e.presets[0].start, end: e.presets[0].end || '', open: e.presets[0].open_end });
+  if (!item && !e.off && !e.start && e.presets.length) Object.assign(e, { start: e.presets[0].start, end: e.presets[0].end || '', open: e.presets[0].open_end });
   S.edit = e;
   const used = new Set((r.items || []).filter((i) => i.person_id && (!item || i.id !== item.id)).map((i) => i.person_id));
   const opt = (p) => `<option value="${esc(p.id)}"${p.id === e.pid ? ' selected' : ''}${used.has(p.id) ? ' disabled' : ''}>${esc(p.nickname)}${used.has(p.id) ? ' (มีในตารางแล้ว)' : ''}</option>`;
@@ -628,7 +710,7 @@ function openRosterItem(item, pre) {
     <div class="choice" id="ri-type"><button type="button" data-act="ri-type" data-v="work">ทำงาน</button><button type="button" class="off" data-act="ri-type" data-v="off">หยุด</button></div>
     <div id="ri-work" class="form">
       <div class="field"><span class="lbl">ร้าน</span><div class="shopgrid" id="ri-shops">${S.shops.map((s) => `<button type="button" data-act="ri-shop" data-s="${esc(s.code)}">${esc(s.code)}</button>`).join('')}</div></div>
-      <div class="field"><span class="lbl">เวลา</span><div class="choice wide" id="ri-presets">${e.presets.map((x, i) => `<button type="button" data-act="ri-preset" data-i="${i}">${hs(x.start)} - ${x.open_end ? 'จนลูกค้าหมด' : hs(x.end)}</button>`).join('')}</div></div>
+      <div class="field"><span class="lbl">เวลา <span class="note">แตะกะที่ใช้บ่อย</span></span><div class="choice wide" id="ri-presets">${e.presets.map((x, i) => `<button type="button" data-act="ri-preset" data-i="${i}">${hm(x.start)} – ${x.open_end ? OPEN_END : hm(x.end)}</button>`).join('')}</div></div>
       <div class="grid2"><div class="field"><label for="ri-start">เวลาเข้า</label><input type="time" id="ri-start"></div><div class="field"><label for="ri-end">เวลาเลิก</label><input type="time" id="ri-end"></div></div>
       <label class="check"><input type="checkbox" id="ri-open"> เลิกเมื่อลูกค้าหมด (ไม่ระบุเวลาเลิก)</label>
     </div>
@@ -653,6 +735,24 @@ function syncRosterItem() {
   $('#ri-end').value = e.open ? '' : (e.end || '');
   $('#ri-open').checked = e.open;
 }
+function openNotes() {
+  const ro = S.roster.roster || {};
+  sheet(`<h3>ประกาศ / ไฟลท์ของวันนี้</h3><p class="note">${thaiDay(S.roster.date)} · ข้อความนี้จะอยู่ในรูปและข้อความที่ส่งเข้า LINE</p>
+    <textarea id="ros-notes" maxlength="600" rows="5" placeholder="เช่น มี 6 ไฟลท์ ไม่รวม CIQ&#10;พรุ่งนี้อนามัยมาตรวจ B3 B7 B19">${esc(ro.notes || '')}</textarea>
+    <p class="err" id="sheet-err" role="alert"></p>
+    <div class="sheet-actions"><span class="spacer"></span><button class="btn" type="button" data-act="close">ยกเลิก</button><button class="btn solid" type="button" data-act="ros-notes">บันทึก</button></div>`);
+}
+function openShopHours(code) {
+  const s = shopOf(code);
+  S.edit = { shop: code };
+  sheet(`<h3>เวลาเปิด–ปิด ร้าน ${esc(code)}</h3><p class="note">ใช้บอกว่าช่วงไหนร้านเปิดแต่ยังไม่มีคน ไม่เกี่ยวกับการลงเวลาของพนักงาน</p>
+    <div class="grid2"><div class="field"><label for="sh-open">เปิด</label><input type="time" id="sh-open" value="${esc(s.open || '')}"></div>
+      <div class="field"><label for="sh-close">ปิด</label><input type="time" id="sh-close" value="${esc(s.close || '')}"${s.open && !s.close ? ' disabled' : ''}></div></div>
+    <label class="check"><input type="checkbox" id="sh-openend"${s.open && !s.close ? ' checked' : ''}> ปิดเมื่อลูกค้าหมด (ไม่มีเวลาปิดแน่นอน)</label>
+    <p class="err" id="sheet-err" role="alert"></p>
+    <div class="sheet-actions">${s.open ? '<button class="btn danger" type="button" data-act="sh-clear">ไม่ตั้งเวลา</button>' : ''}<span class="spacer"></span>
+      <button class="btn" type="button" data-act="close">ยกเลิก</button><button class="btn solid" type="button" data-act="sh-save">บันทึก</button></div>`);
+}
 function rosterText() {
   const r = S.roster, items = r.items || [], ro = r.roster;
   const lines = [`ตารางงาน ${thaiDay(r.date)}`];
@@ -660,7 +760,7 @@ function rosterText() {
   if (off.length) lines.push(`หยุด: ${off.join(', ')}`);
   if (ro && ro.notes) lines.push('', ro.notes);
   S.shops.forEach((s) => {
-    const list = items.filter((i) => !i.off && i.shop_code === s.code);
+    const list = items.filter((i) => !i.off && i.shop_code === s.code).sort(byStart);
     if (!list.length) return;
     lines.push('', s.code);
     list.forEach((i) => lines.push(`${i.name}  ${rosterTime(i)}${i.note ? ` (${i.note})` : ''}`));
@@ -690,7 +790,7 @@ async function rosterImage() {
   const off = items.filter((i) => i.off).map((i) => i.name);
   const offLines = off.length ? wrap(`หยุด: ${off.join(', ')}`, F(700, 32), W - P * 2) : [];
   const noteLines = ro.notes ? wrap(ro.notes, F(400, 30), W - P * 2 - 40) : [];
-  const blocks = S.shops.map((s) => ({ code: s.code, list: items.filter((i) => !i.off && i.shop_code === s.code) })).filter((b) => b.list.length);
+  const blocks = S.shops.map((s) => ({ code: s.code, list: items.filter((i) => !i.off && i.shop_code === s.code).sort(byStart) })).filter((b) => b.list.length);
   blocks.forEach((b) => { b.h = 74 + b.list.length * 50 + 14; });
   const HEAD = 190;
   let y0 = HEAD + 8 + 30;
@@ -748,7 +848,7 @@ async function rosterImage() {
     g.fillText(cnt, b.x + colW - 18 - g.measureText(cnt).width, b.y + 46);
     b.list.forEach((i, k) => {
       const ly = b.y + 74 + k * 50 + 34;
-      const time = `${hs(i.start)} - ${i.open_end ? 'จนลูกค้าหมด' : hs(i.end)}`;
+      const time = rosterTime(i);
       let fs = 30;
       g.font = F(700, fs);
       while (fs > 20 && g.measureText(time).width + 160 > colW - 36) { fs -= 2; g.font = F(700, fs); }
@@ -765,51 +865,73 @@ async function rosterImage() {
   return cv.toDataURL('image/png');
 }
 
-/* ---------------------------------------------------------------- admin: week overview (read from live shifts) */
-VIEWS.adm_plan = {
+/* ---------------------------------------------------------------- week overview: which shop has nobody, and when */
+const WEEK_ST = { approved: ['อนุมัติแล้ว', 'ok'], submitted: ['รออนุมัติ', 'warn'], draft: ['ร่าง', 'draft'], live: ['มีกะในระบบ', 'ok'] };
+const WEEK = {
   async load() {
     if (!S.weekStart) S.weekStart = mondayOf(S.rosterDate || S.today);
-    const r = await api('adm_shifts', { from: S.weekStart, days: 7 });
-    r.map = {};
-    (r.shifts || []).forEach((x) => { r.map[`${x.person_id}|${x.date}`] = x; });
-    r.rmap = {};
-    (r.rosters || []).forEach((x) => { r.rmap[x.date] = x.status; });
-    S.plan = r;
+    S.plan = await api('ros_week', { date: S.weekStart });
+    if (S.plan.shops && S.plan.shops.length) S.shops = S.plan.shops;
+    S.today = S.plan.today || S.today;
   },
-  render() { return planWeekHTML(S.plan, Array.from({ length: 7 }, (_, i) => addDays(S.weekStart, i))); },
+  render() { return weekHTML(S.plan); },
 };
+VIEWS.adm_plan = WEEK;
+VIEWS.st_plan = WEEK;
 function weekLabel(days) {
-  const a = parseD(days[0]), b = parseD(days[6]);
+  const a = parseD(days[0]), b = parseD(days[days.length - 1]);
   return a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()} ${MONTHS_S[b.getMonth()]} ${be(b.getFullYear())}` : `${a.getDate()} ${MONTHS_S[a.getMonth()]} – ${b.getDate()} ${MONTHS_S[b.getMonth()]} ${be(b.getFullYear())}`;
 }
-function shiftCell(sh, home) {
-  const cls = !sh ? 'unset' : sh.off ? 'off' : toMin(sh.start) < 540 ? 'morning' : 'evening';
-  const txt = !sh ? '–' : sh.off ? 'หยุด' : `${hs(sh.start)}–${sh.open_end ? 'ปิด' : hs(sh.end)}${sh.shop && sh.shop !== home ? `<br><small>@${esc(sh.shop)}</small>` : ''}`;
-  return { cls: cls + (sh && sh.note ? ' has-note' : ''), txt };
-}
-function planWeekHTML(r, days) {
-  const head = days.map((k) => {
-    const d = parseD(k), st = r.rmap[k];
-    return `<th class="${k === r.today ? 'is-today' : ''}"><button class="row-link" type="button" data-act="ros-open" data-d="${k}">${DOW[d.getDay()]}. ${d.getDate()} ${MONTHS_S[d.getMonth()]}</button><small class="wk-st ${st || ''}">${st ? ROSTER_STATUS[st][0].split(' ')[0] : 'ยังไม่จัด'}</small></th>`;
+function weekHTML(r) {
+  const days = (r.days || []).map((d) => Object.assign({}, d, { items: d.items || [] }));
+  const today = r.today;
+  const lo = axisFrom([].concat(...days.map((d) => d.items)));
+  const working = (d, code) => d.items.filter((i) => !i.off && i.shop_code === code).sort(byStart);
+  const lanes = {};
+  S.shops.forEach((s) => { lanes[s.code] = Math.max(1, ...days.map((d) => working(d, s.code).length)); });
+  const head = days.map((d) => {
+    const dt = parseD(d.date), st = d.status ? WEEK_ST[d.status] : null;
+    let gaps = 0;
+    if (d.status) S.shops.forEach((s) => { gaps += shopGaps(s.code, working(d, s.code)).length; });
+    return `<button class="wk-head${d.date === today ? ' today' : ''}" type="button" data-act="ros-open" data-d="${d.date}">
+      <b>${d.date === today ? 'วันนี้ ' : ''}${DOW[dt.getDay()]}. ${dt.getDate()} ${MONTHS_S[dt.getMonth()]}</b>
+      <span class="wk-st ${st ? st[1] : 'none'}"><i></i>${st ? st[0] : 'ยังไม่จัด'}</span>
+      <span class="wk-gap ${!d.status ? '' : gaps ? 'bad' : 'ok'}">${!d.status ? 'แตะเพื่อเริ่มจัด' : gaps ? `ว่าง ${gaps} จุด` : 'ครบทุกร้าน'}</span>
+      ${axisHTML(lo, 'wk-axis', 6, true)}</button>`;
   }).join('');
-  let body = '';
-  S.shops.forEach((s) => {
-    const list = (r.people || []).filter((p) => p.shop_code === s.code);
-    if (!list.length) return;
-    body += `<tr class="shop-row"><th colspan="8">${shopGate(s.code)}</th></tr>`;
-    list.forEach((p) => {
-      body += `<tr><th class="emp">${esc(p.nickname)}</th>${days.map((k) => {
-        const sh = r.map[`${p.id}|${k}`], c = shiftCell(sh, p.shop_code);
-        return `<td class="${k === r.today ? 'is-today' : ''}"><button class="shift-btn ${c.cls}" type="button" data-act="ros-open" data-d="${k}"${sh && sh.note ? ` title="${esc(sh.note)}"` : ''}>${c.txt}</button></td>`;
-      }).join('')}</tr>`;
-    });
-  });
-  return `<div class="stack"><button class="btn quiet" type="button" data-act="tab" data-t="roster" style="justify-self:start">‹ กลับไปจัดเวร</button>
-    <div class="view-head"><div><h1 class="view-title">ภาพรวมทั้งสัปดาห์</h1><p class="note">แสดงกะที่อนุมัติแล้ว แตะวันหรือช่องไหนเพื่อเปิดตารางเวรของวันนั้น</p></div>
+  const rows = S.shops.map((s) => {
+    const h = shopHours(s), height = lanes[s.code] * 18 + 6;
+    const cells = days.map((d) => {
+      const cls = `wk-cell${d.date === today ? ' today' : ''}`;
+      if (!d.status) return `<button class="${cls} none" type="button" data-act="ros-open" data-d="${d.date}" aria-label="${esc(`${s.code} ${d.date} ยังไม่จัด`)}"><span class="wk-lane" style="height:${height}px"></span></button>`;
+      const list = working(d, s.code);
+      const gaps = shopGaps(s.code, list);
+      const openSeg = h ? `<span class="tl-open" style="left:${pctOf(h[0], lo)}%;width:${(pctOf(h[1], lo) - pctOf(h[0], lo)).toFixed(2)}%"></span>` : '';
+      const gapEls = gaps.map((g) => {
+        const a = g.a == null ? lo : g.a, b = g.b == null ? 24 : g.b;
+        return `<span class="wk-gapbar" style="left:${pctOf(a, lo)}%;width:${(pctOf(b, lo) - pctOf(a, lo)).toFixed(2)}%">${g.all ? 'ไม่มีคน' : ''}</span>`;
+      }).join('');
+      const bars = list.map((i, k) => {
+        const [a, b] = span(i.start, i.end, i.open_end);
+        return `<span class="wk-bar${i.open_end ? ' open' : ''}" style="top:${3 + k * 18}px;left:${pctOf(a, lo)}%;width:${(pctOf(b, lo) - pctOf(a, lo)).toFixed(2)}%">${esc(i.name)}</span>`;
+      }).join('');
+      const title = list.map((i) => `${i.name} ${rosterTime(i)}`).concat(gaps.map((g) => `ว่าง ${gapText(g)}`)).join('\n') || 'ไม่มีคน';
+      return `<button class="${cls}" type="button" data-act="ros-open" data-d="${d.date}" title="${esc(`${s.code}\n${title}`)}"><span class="wk-lane${h ? ' timed' : ''}" style="height:${height}px">${openSeg}${gapEls}${bars}</span></button>`;
+    }).join('');
+    return `<div class="wk-code">${shopGate(s.code)}</div>${cells}`;
+  }).join('');
+  const offRow = `<div class="wk-code wk-offlbl">หยุด</div>${days.map((d) => `<div class="wk-off${d.date === today ? ' today' : ''}">${esc(d.items.filter((i) => i.off).map((i) => i.name).join(', '))}</div>`).join('')}`;
+  const keys = days.map((d) => d.date);
+  return `<div class="stack">
+    <button class="btn quiet" type="button" data-act="tab" data-t="roster" style="justify-self:start">‹ กลับไปจัดเวร</button>
+    <div class="view-head"><div><h1 class="view-title">ร้านไหนว่างช่วงไหน</h1><p class="note">แต่ละช่องคือหนึ่งวันของร้าน แถบฟ้าคือคนที่อยู่ แถบส้มคือร้านเปิดแต่ไม่มีคน แตะช่องเพื่อเปิดตารางวันนั้น</p></div>
       <div class="datenav" style="min-width:min(100%,24rem)"><button class="icon-btn" type="button" data-act="plan-week" data-d="-7" aria-label="สัปดาห์ก่อน">‹</button>
-        <div class="datenav-label"><span class="k">สัปดาห์</span><strong>${weekLabel(days)}</strong></div>
+        <div class="datenav-label"><span class="k">สัปดาห์</span><strong>${keys.length ? weekLabel(keys) : ''}</strong></div>
         <button class="icon-btn" type="button" data-act="plan-week" data-d="7" aria-label="สัปดาห์ถัดไป">›</button></div></div>
-    ${body ? `<div class="panel table-scroll"><table class="t week"><thead><tr><th>พนักงาน</th>${head}</tr></thead><tbody>${body}</tbody></table></div>` : '<p class="panel empty">ยังไม่มีพนักงานที่ทำงานอยู่</p>'}</div>`;
+    <div class="tl-legend"><span><i class="lg-bar"></i>มีคนอยู่</span><span><i class="lg-gap"></i>ร้านเปิดแต่ไม่มีคน</span><span><i class="lg-closed"></i>ร้านปิด</span><span>แกนเวลาในช่อง ${lo}:00 → 24:00</span></div>
+    <div class="panel wk-scroll"><div class="wk-grid"><div class="wk-corner">ร้าน</div>${head}${rows}${offRow}</div></div>
+    ${S.shops.some((s) => !s.open) ? '<p class="note">ร้านที่ยังไม่ได้ตั้งเวลาเปิด–ปิด ระบบเตือนได้แค่ตอนที่ไม่มีคนเลยทั้งวัน</p>' : ''}
+  </div>`;
 }
 
 /* ---------------------------------------------------------------- admin: notices */
@@ -1060,7 +1182,18 @@ const ACT = {
   }),
 
   'plan-week': (el) => { S.weekStart = addDays(S.weekStart, +el.dataset.d); load(); },
-  'go-week': () => { S.weekStart = mondayOf(S.rosterDate || S.today); S.adm = 'plan'; window.scrollTo(0, 0); load(); },
+  'go-week': () => { S.weekStart = mondayOf(S.rosterDate || S.today); if (S.mode === 'admin') S.adm = 'plan'; else S.tab = 'plan'; window.scrollTo(0, 0); load(); },
+  'ros-notes-edit': () => openNotes(),
+  'shop-hours': (el) => openShopHours(el.dataset.s),
+  'sh-save': (el) => busy(el, async () => {
+    const open = $('#sh-open').value, openEnd = $('#sh-openend').checked, close = openEnd ? '' : $('#sh-close').value;
+    if (!open) return sheetErr('กรุณาใส่เวลาเปิด หรือกด "ไม่ตั้งเวลา"');
+    if (!openEnd && !close) return sheetErr('กรุณาใส่เวลาปิด หรือติ๊ก "ปิดเมื่อลูกค้าหมด"');
+    try { const r = await api('adm_shop_hours', { code: S.edit.shop, open, close, open_end: openEnd }); S.shops = r.shops; closeSheet(); paint(); toast('บันทึกเวลาเปิด–ปิดแล้ว'); } catch (e) { sheetErr(e.message); }
+  }),
+  'sh-clear': (el) => busy(el, async () => {
+    try { const r = await api('adm_shop_hours', { code: S.edit.shop, open: '' }); S.shops = r.shops; closeSheet(); paint(); toast('ยกเลิกเวลาเปิด–ปิดแล้ว'); } catch (e) { sheetErr(e.message); }
+  }),
   'dev-exit': () => { try { const u = new URL(location.href); u.searchParams.delete('as'); location.href = u.toString(); } catch (e) { location.href = location.pathname; } },
 
   'ros-open': (el) => { closeSheet(); S.rosterDate = el.dataset.d; if (S.mode === 'admin') S.adm = 'roster'; else S.tab = 'roster'; window.scrollTo(0, 0); load(); },
@@ -1069,9 +1202,13 @@ const ACT = {
     try { S.roster = await api('ros_init', { date: S.roster.date, source: el.dataset.src }); paint(); toast(el.dataset.src === 'empty' ? 'เริ่มตารางว่างแล้ว' : 'คัดลอกแล้ว แก้ทีละคนได้เลย'); } catch (e) { toast(e.message); }
   }),
   'ros-notes': (el) => busy(el, async () => {
-    try { S.roster = await api('ros_notes', { date: S.roster.date, notes: $('#ros-notes').value }); paint(); toast('บันทึกประกาศแล้ว'); } catch (e) { toast(e.message); }
+    try { S.roster = await api('ros_notes', { date: S.roster.date, notes: $('#ros-notes').value }); closeSheet(); paint(); toast('บันทึกประกาศแล้ว'); } catch (e) { sheetErr(e.message); }
   }),
-  'ros-add': (el) => { openRosterItem(null, { pid: el.dataset.pid || '', shop: el.dataset.shop || '', off: el.dataset.off === '1' }); if (S.edit && el.dataset.shop && !el.dataset.pid) S.edit.shopLocked = true; },
+  'ros-add': (el) => {
+    const d = el.dataset;
+    openRosterItem(null, { pid: d.pid || '', shop: d.shop || '', off: d.off === '1', start: d.start || '', end: d.end || '', open: d.open === '1' });
+    if (S.edit && d.shop && !d.pid) S.edit.shopLocked = true;
+  },
   'ros-edit': (el) => { const it = (S.roster.items || []).find((x) => x.id === el.dataset.id); if (it) openRosterItem(it); },
   'ri-type': (el) => {
     const e = S.edit;
@@ -1265,6 +1402,7 @@ document.addEventListener('change', (ev) => {
   else if (id === 'ri-start' && S.edit) { S.edit.start = v; syncRosterItem(); }
   else if (id === 'ri-end' && S.edit) { S.edit.end = v; if (v) S.edit.open = false; syncRosterItem(); }
   else if (id === 'ri-open' && S.edit) { S.edit.open = ev.target.checked; syncRosterItem(); }
+  else if (id === 'sh-openend') { const c = $('#sh-close'); if (c) { c.disabled = ev.target.checked; if (ev.target.checked) c.value = ''; } }
 });
 
 /* keep the clock and data fresh */
