@@ -562,6 +562,16 @@ function axisHTML(lo, cls, step, short) {
   if (ticks[ticks.length - 1] !== 24) ticks.push(24);
   return `<div class="${cls}" aria-hidden="true">${ticks.map((h, i) => `<span style="left:${pctOf(h, lo)}%"${i === 0 ? ' class="first"' : h === 24 ? ' class="last"' : ''}>${short ? h : `${h}:00`}</span>`).join('')}</div>`;
 }
+/* each working round becomes one segment (a person can work a second round in another shop / later) */
+function segments(items) {
+  const out = [];
+  items.forEach((i) => {
+    if (i.off) return;
+    if (i.shop_code) out.push(Object.assign({}, i, { round: 1 }));
+    if (i.shop2) out.push(Object.assign({}, i, { round: 2, shop_code: i.shop2, start: i.start2, end: i.end2, open_end: i.open_end2 }));
+  });
+  return out;
+}
 const byStart = (a, b) => (a.start || '').localeCompare(b.start || '') || String(a.name).localeCompare(String(b.name), 'th');
 function gridLines(lo) {
   let out = '';
@@ -626,8 +636,9 @@ function rosterHTML() {
   const lo = axisFrom(items);
   const allGaps = [];
   const wide = isWide();
+  const segs = segments(items);
   const rows = S.shops.map((s, si) => {
-    const list = items.filter((i) => !i.off && i.shop_code === s.code).sort(byStart);
+    const list = segs.filter((i) => i.shop_code === s.code).sort(byStart);
     const gaps = shopGaps(s.code, list);
     gaps.forEach((g) => allGaps.push(`${s.code} ${gapText(g)}`));
     const h = shopHours(s);
@@ -646,10 +657,11 @@ function rosterHTML() {
       const [a, b] = span(i.start, i.end, i.open_end);
       const w = pctOf(b, lo) - pctOf(a, lo), room = wide ? w * 3 : w;
       const time = rosterTime(i);
-      const text = room >= 40 ? `<b>${esc(i.name)}</b> ${time}` : room >= 22 ? `<b>${esc(i.name)}</b> ${hm(i.start)}${i.open_end ? ' →' : ''}` : `<b>${esc(i.name)}</b>`;
+      const nm = `<b>${esc(i.name)}</b>${i.round === 2 ? '<small>รอบ 2</small>' : ''}`;
+      const text = room >= 40 ? `${nm} ${time}` : room >= 22 ? `${nm} ${hm(i.start)}${i.open_end ? ' →' : ''}` : nm;
       const helping = i.home_shop && i.home_shop !== i.shop_code;
       return `<button class="tl-bar${i.open_end ? ' open' : ''}${i.guest ? ' guest' : ''}" type="button" data-act="ros-edit" data-id="${esc(i.id)}"${readOnly ? ' disabled' : ''}
-        style="top:${4 + k * 34}px;left:${pctOf(a, lo)}%;width:${w.toFixed(2)}%" title="${esc(`${i.name} ${time}${helping ? ` · มาจาก ${i.home_shop}` : ''}${i.note ? ` · ${i.note}` : ''}`)}">${text}</button>`;
+        style="top:${4 + k * 34}px;left:${pctOf(a, lo)}%;width:${w.toFixed(2)}%" title="${esc(`${i.name}${i.round === 2 ? ' (รอบ 2)' : ''} ${time}${helping ? ` · มาจาก ${i.home_shop}` : ''}${i.note ? ` · ${i.note}` : ''}`)}">${text}</button>`;
     }).join('');
     return `<div class="tl-shop"${si ? '' : ' style="border-top:0"'}>
       <div class="tl-head">${shopGate(s.code)}${hoursBtn}${note}</div>
@@ -695,8 +707,9 @@ function openRosterItem(item, pre) {
   const r = S.roster, people = r.people || [];
   pre = pre || {};
   const e = item
-    ? { id: item.id, pid: item.person_id || '__guest', guest: item.guest ? item.name : '', shop: item.shop_code || item.home_shop || '', off: !!item.off, start: item.start || '', end: item.end || '', open: !!item.open_end, note: item.note || '' }
-    : { id: '', pid: pre.pid || '', guest: '', shop: pre.shop || '', off: !!pre.off, start: pre.start || '', end: pre.end || '', open: !!pre.open, note: '' };
+    ? { id: item.id, pid: item.person_id || '__guest', guest: item.guest ? item.name : '', shop: item.shop_code || item.home_shop || '', off: !!item.off, start: item.start || '', end: item.end || '', open: !!item.open_end, note: item.note || '',
+        r2: !!item.shop2, shop2: item.shop2 || '', start2: item.start2 || '', end2: item.end2 || '', open2: !!item.open_end2 }
+    : { id: '', pid: pre.pid || '', guest: '', shop: pre.shop || '', off: !!pre.off, start: pre.start || '', end: pre.end || '', open: !!pre.open, note: '', r2: false, shop2: '', start2: '', end2: '', open2: false };
   e.presets = rosterPresets();
   if (!item && !e.off && !e.start && e.presets.length) Object.assign(e, { start: e.presets[0].start, end: e.presets[0].end || '', open: e.presets[0].open_end });
   S.edit = e;
@@ -713,6 +726,12 @@ function openRosterItem(item, pre) {
       <div class="field"><span class="lbl">เวลา <span class="note">แตะกะที่ใช้บ่อย</span></span><div class="choice wide" id="ri-presets">${e.presets.map((x, i) => `<button type="button" data-act="ri-preset" data-i="${i}">${hm(x.start)} – ${x.open_end ? OPEN_END : hm(x.end)}</button>`).join('')}</div></div>
       <div class="grid2"><div class="field"><label for="ri-start">เวลาเข้า</label><input type="time" id="ri-start"></div><div class="field"><label for="ri-end">เวลาเลิก</label><input type="time" id="ri-end"></div></div>
       <label class="check"><input type="checkbox" id="ri-open"> เลิกเมื่อลูกค้าหมด (ไม่ระบุเวลาเลิก)</label>
+      <label class="check r2-toggle"><input type="checkbox" id="ri-r2"> ทำ 2 รอบในวันนี้ (เช่น ไปต่ออีกร้านตอนเย็น)</label>
+      <div id="ri-round2" class="form round2">
+        <div class="field"><span class="lbl">ร้านรอบ 2</span><div class="shopgrid" id="ri-shops2">${S.shops.map((s) => `<button type="button" data-act="ri-shop2" data-s="${esc(s.code)}">${esc(s.code)}</button>`).join('')}</div></div>
+        <div class="grid2"><div class="field"><label for="ri-start2">เข้ารอบ 2</label><input type="time" id="ri-start2"></div><div class="field"><label for="ri-end2">เลิกรอบ 2</label><input type="time" id="ri-end2"></div></div>
+        <label class="check"><input type="checkbox" id="ri-open2"> รอบ 2 เลิกเมื่อลูกค้าหมด</label>
+      </div>
     </div>
     <div class="field"><label for="ri-note">หมายเหตุ (ไม่ใส่ก็ได้)</label><input type="text" id="ri-note" maxlength="60" value="${esc(e.note)}" placeholder="เช่น ไฟลท์ดีเลย์"></div>
     <p class="err" id="sheet-err" role="alert"></p>
@@ -734,6 +753,12 @@ function syncRosterItem() {
   $('#ri-start').value = e.start || '';
   $('#ri-end').value = e.open ? '' : (e.end || '');
   $('#ri-open').checked = e.open;
+  $('#ri-r2').checked = e.r2;
+  $('#ri-round2').hidden = !e.r2;
+  document.querySelectorAll('#ri-shops2 button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.s === e.shop2)));
+  $('#ri-start2').value = e.start2 || '';
+  $('#ri-end2').value = e.open2 ? '' : (e.end2 || '');
+  $('#ri-open2').checked = e.open2;
 }
 function openNotes() {
   const ro = S.roster.roster || {};
@@ -760,7 +785,7 @@ function rosterText() {
   if (off.length) lines.push(`หยุด: ${off.join(', ')}`);
   if (ro && ro.notes) lines.push('', ro.notes);
   S.shops.forEach((s) => {
-    const list = items.filter((i) => !i.off && i.shop_code === s.code).sort(byStart);
+    const list = segments(items).filter((i) => i.shop_code === s.code).sort(byStart);
     if (!list.length) return;
     lines.push('', s.code);
     list.forEach((i) => lines.push(`${i.name}  ${rosterTime(i)}${i.note ? ` (${i.note})` : ''}`));
@@ -790,7 +815,7 @@ async function rosterImage() {
   const off = items.filter((i) => i.off).map((i) => i.name);
   const offLines = off.length ? wrap(`หยุด: ${off.join(', ')}`, F(700, 32), W - P * 2) : [];
   const noteLines = ro.notes ? wrap(ro.notes, F(400, 30), W - P * 2 - 40) : [];
-  const blocks = S.shops.map((s) => ({ code: s.code, list: items.filter((i) => !i.off && i.shop_code === s.code).sort(byStart) })).filter((b) => b.list.length);
+  const blocks = S.shops.map((s) => ({ code: s.code, list: segments(items).filter((i) => i.shop_code === s.code).sort(byStart) })).filter((b) => b.list.length);
   blocks.forEach((b) => { b.h = 74 + b.list.length * 50 + 14; });
   const HEAD = 190;
   let y0 = HEAD + 8 + 30;
@@ -886,7 +911,7 @@ function weekHTML(r) {
   const days = (r.days || []).map((d) => Object.assign({}, d, { items: d.items || [] }));
   const today = r.today;
   const lo = axisFrom([].concat(...days.map((d) => d.items)));
-  const working = (d, code) => d.items.filter((i) => !i.off && i.shop_code === code).sort(byStart);
+  const working = (d, code) => segments(d.items).filter((i) => i.shop_code === code).sort(byStart);
   const lanes = {};
   S.shops.forEach((s) => { lanes[s.code] = Math.max(1, ...days.map((d) => working(d, s.code).length)); });
   const head = days.map((d) => {
@@ -1050,7 +1075,7 @@ VIEWS.adm_people = {
     const all = S.peopleData.people || [];
     const pending = all.filter((p) => p.status === 'pending'), active = all.filter((p) => p.status === 'active'), inactive = all.filter((p) => p.status === 'inactive');
     const row = (p) => `<li><button class="item" type="button" data-act="person-edit" data-id="${esc(p.id)}">${avatar(p)}<span class="item-main">
-      <span class="item-line"><span class="item-name">${esc(p.nickname)}</span>${p.role === 'admin' ? '<span class="tag">ผู้จัดการ</span>' : ''}${p.can_schedule ? '<span class="tag">ผู้จัดเวร</span>' : ''}${p.is_test ? '<span class="tag test">ทดสอบ</span>' : ''}</span>
+      <span class="item-line"><span class="item-name">${esc(p.nickname)}</span>${p.role === 'admin' ? '<span class="tag">ผู้จัดการ</span>' : ''}${p.can_schedule ? '<span class="tag">ผู้จัดเวร</span>' : ''}${p.is_test ? '<span class="tag test">ทดสอบ</span>' : ''}${p.is_demo ? '<span class="tag test">ตัวอย่าง</span>' : ''}</span>
       <span class="item-sub num">${esc(fmtPhone(p.phone))}</span><span class="item-sub">${p.linked ? 'เปิดแอปแล้ว' : 'ยังไม่ได้เปิดแอป'}</span></span></button></li>`;
     const pend = pending.map((p) => `<li class="ev" style="grid-template-columns:auto 1fr">${avatar(p, 'lg')}<div class="item-main">
         <div class="item-line"><span class="item-name">${esc(p.nickname)}</span>${shopGate(p.shop_code)}</div>
@@ -1217,22 +1242,32 @@ const ACT = {
     syncRosterItem();
   },
   'ri-shop': (el) => { S.edit.shop = el.dataset.s; syncRosterItem(); },
+  'ri-shop2': (el) => { S.edit.shop2 = el.dataset.s; syncRosterItem(); },
   'ri-preset': (el) => { const x = S.edit.presets[+el.dataset.i]; Object.assign(S.edit, { start: x.start, end: x.end || '', open: x.open_end }); syncRosterItem(); },
   'ri-save': (el) => busy(el, async () => {
     const e = S.edit;
     e.note = $('#ri-note').value.trim(); e.guest = $('#ri-guest').value.trim();
     e.start = $('#ri-start').value; if (!e.open) e.end = $('#ri-end').value;
+    if (e.r2) { e.start2 = $('#ri-start2').value; if (!e.open2) e.end2 = $('#ri-end2').value; }
     if (!e.pid) return sheetErr('กรุณาเลือกชื่อพนักงาน');
     if (e.pid === '__guest' && !e.guest) return sheetErr('กรุณาพิมพ์ชื่อ');
     if (!e.off) {
       if (!e.shop) return sheetErr('กรุณาเลือกร้าน');
       if (!e.start) return sheetErr('กรุณาใส่เวลาเข้า');
       if (!e.open && !e.end) return sheetErr('กรุณาใส่เวลาเลิก หรือติ๊ก "เลิกเมื่อลูกค้าหมด"');
+      if (e.r2) {
+        if (e.open) return sheetErr('รอบแรกเลือก "เลิกเมื่อลูกค้าหมด" ไว้ จะมีรอบ 2 ไม่ได้');
+        if (!e.shop2) return sheetErr('กรุณาเลือกร้านของรอบ 2');
+        if (!e.start2) return sheetErr('กรุณาใส่เวลาเข้าของรอบ 2');
+        if (!e.open2 && !e.end2) return sheetErr('กรุณาใส่เวลาเลิกของรอบ 2 หรือติ๊ก "รอบ 2 เลิกเมื่อลูกค้าหมด"');
+      }
     }
+    const r2 = !e.off && e.r2;
     try {
       S.roster = await api('ros_item_save', {
         date: S.roster.date, id: e.id, person_id: e.pid === '__guest' ? '' : e.pid, guest_name: e.pid === '__guest' ? e.guest : '',
         shop_code: e.off ? '' : e.shop, off: e.off, start: e.off ? '' : e.start, end: e.off || e.open ? '' : e.end, open_end: !e.off && e.open, note: e.note,
+        shop2: r2 ? e.shop2 : '', start2: r2 ? e.start2 : '', end2: r2 && !e.open2 ? e.end2 : '', open_end2: r2 && e.open2,
       });
       closeSheet(); paint(); toast('บันทึกแล้ว');
     } catch (err) { sheetErr(err.message); }
@@ -1402,6 +1437,15 @@ document.addEventListener('change', (ev) => {
   else if (id === 'ri-start' && S.edit) { S.edit.start = v; syncRosterItem(); }
   else if (id === 'ri-end' && S.edit) { S.edit.end = v; if (v) S.edit.open = false; syncRosterItem(); }
   else if (id === 'ri-open' && S.edit) { S.edit.open = ev.target.checked; syncRosterItem(); }
+  else if (id === 'ri-r2' && S.edit) {
+    const e = S.edit;
+    e.r2 = ev.target.checked;
+    if (e.r2 && !e.start2) e.start2 = e.open ? '' : (e.end || '');
+    syncRosterItem();
+  }
+  else if (id === 'ri-start2' && S.edit) { S.edit.start2 = v; syncRosterItem(); }
+  else if (id === 'ri-end2' && S.edit) { S.edit.end2 = v; if (v) S.edit.open2 = false; syncRosterItem(); }
+  else if (id === 'ri-open2' && S.edit) { S.edit.open2 = ev.target.checked; syncRosterItem(); }
   else if (id === 'sh-openend') { const c = $('#sh-close'); if (c) { c.disabled = ev.target.checked; if (ev.target.checked) c.value = ''; } }
 });
 
