@@ -411,7 +411,7 @@ VIEWS.st_shifts = {
   render() {
     const r = S.myShifts;
     const rows = (r.days || []).map((d) => `<li class="day-row${d.date === r.today ? ' today' : ''}"><span class="d">${d.date === r.today ? 'วันนี้' : dShort(d.date)}</span>
-      <span class="${d.off ? 't-bad' : d.has_shift ? 'num' : 't-muted'}">${shiftText(d)}${d.shop && d.shop !== S.me.shop_code ? ` <span class="tag">ร้าน ${esc(d.shop)}</span>` : ''}</span>${d.note ? `<span class="x">${esc(d.note)}</span>` : ''}</li>`).join('');
+      <span class="${d.off ? 't-bad' : d.has_shift ? 'num' : 't-muted'}">${!d.has_shift && d.pending ? 'ตารางรอผู้จัดการอนุมัติ' : shiftText(d)}${d.shop && d.shop !== S.me.shop_code ? ` <span class="tag">ร้าน ${esc(d.shop)}</span>` : ''}${d.has_shift && d.pending ? ' <span class="tag warn">มีแก้ไข รออนุมัติ</span>' : ''}</span>${d.note ? `<span class="x">${esc(d.note)}</span>` : ''}</li>`).join('');
     return `<div class="stack"><div><h1 class="view-title">กะของฉัน</h1><p class="note">14 วันข้างหน้า ถ้ามีการเปลี่ยนกะตามไฟลท์ จะเห็นที่นี่ทันที</p></div><ol class="panel list">${rows}</ol></div>`;
   },
 };
@@ -612,7 +612,7 @@ function rosterHTML() {
   const word = dayWord(date, r.today);
   let meta = '';
   if (status === 'approved') meta = `อนุมัติโดย ${esc(ro.approved_by || '-')} ${esc(fmtStamp(ro.approved_at))} · พนักงานเห็นกะแล้ว`;
-  else if (status === 'submitted') meta = `ส่งโดย ${esc(ro.submitted_by || '-')} ${esc(fmtStamp(ro.submitted_at))}`;
+  else if (status === 'submitted') meta = `ส่งโดย ${esc(ro.submitted_by || '-')} ${esc(fmtStamp(ro.submitted_at))}${ro.approved_at ? ' · <b class="t-warn">แก้หลังอนุมัติ พนักงานยังเห็นฉบับเดิมจนกว่าจะอนุมัติใหม่</b>' : ''}`;
   else if (status === 'draft') meta = `แก้ล่าสุดโดย ${esc(ro.updated_by || '-')} ${esc(fmtStamp(ro.updated_at))}${ro.approved_at ? ' · <b class="t-warn">แก้หลังอนุมัติ พนักงานยังเห็นตารางเดิมจนกว่าจะอนุมัติใหม่</b>' : ''}`;
   const pill = status ? `<span class="chip ${ROSTER_STATUS[status][1]}">${ROSTER_STATUS[status][0]}</span>` : '<span class="chip">ยังไม่ได้จัด</span>';
   const dateBar = `<div class="ros-date panel">
@@ -688,7 +688,7 @@ function rosterHTML() {
   let main = '';
   if (readOnly) main = '';
   else if (!items.length) main = '<span class="note">เพิ่มคนในตารางก่อน แล้วค่อยส่ง</span>';
-  else if (status === 'approved') main = `<span class="note">${admin ? 'อนุมัติแล้ว แก้ต่อได้ ระบบใช้ฉบับใหม่ทันที' : 'อนุมัติแล้ว ถ้าแก้ต้องส่งตรวจใหม่'}</span>`;
+  else if (status === 'approved') main = `<span class="note">${admin ? 'อนุมัติแล้ว แก้ต่อได้ ระบบใช้ฉบับใหม่ทันที' : 'อนุมัติแล้ว ถ้าแก้ ระบบจะส่งให้ผู้จัดการอนุมัติใหม่เอง'}</span>`;
   else if (admin) main = '<button class="btn-primary good" type="button" data-act="ros-approve" data-confirm="แตะอีกครั้งเพื่ออนุมัติ">อนุมัติตารางนี้</button>';
   else if (status === 'submitted') main = '<span class="note">ส่งแล้ว รอผู้จัดการอนุมัติ ยังแก้ได้</span>';
   else main = '<button class="btn-primary" type="button" data-act="ros-submit">ส่งให้ผู้จัดการตรวจ</button>';
