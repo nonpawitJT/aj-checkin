@@ -628,6 +628,7 @@ function rosterHTML() {
     const start = readOnly ? '<p class="panel empty">ไม่มีตารางของวันนี้</p>'
       : `<section class="panel ros-pad"><h3 class="section-title">เริ่มจัดตาราง</h3><p class="note">เลือกจุดเริ่มต้น แล้วค่อยแก้ทีละคน</p>
         <div class="row-btns">${src.yesterday ? '<button class="btn solid" type="button" data-act="ros-init" data-src="yesterday">คัดลอกจากเมื่อวาน</button>' : ''}
+        ${!src.yesterday && src.latest ? `<button class="btn solid" type="button" data-act="ros-init" data-src="latest">คัดลอกจาก ${dShort(src.latest)}</button>` : ''}
         ${src.lastweek ? '<button class="btn" type="button" data-act="ros-init" data-src="lastweek">คัดลอกจากวันเดียวกันสัปดาห์ก่อน</button>' : ''}
         <button class="btn" type="button" data-act="ros-init" data-src="empty">เริ่มตารางว่าง</button></div></section>`;
     return `<div class="stack">${head}${dateBar}${start}</div>`;
@@ -664,7 +665,7 @@ function rosterHTML() {
         style="top:${4 + k * 34}px;left:${pctOf(a, lo)}%;width:${w.toFixed(2)}%" title="${esc(`${i.name}${i.round === 2 ? ' (รอบ 2)' : ''} ${time}${helping ? ` · มาจาก ${i.home_shop}` : ''}${i.note ? ` · ${i.note}` : ''}`)}">${text}</button>`;
     }).join('');
     return `<div class="tl-shop"${si ? '' : ' style="border-top:0"'}>
-      <div class="tl-head">${shopGate(s.code)}${hoursBtn}${note}</div>
+      <div class="tl-head">${shopGate(s.code)}${hoursBtn}${note}${readOnly ? '' : `<button class="tl-add" type="button" data-act="ros-add" data-shop="${esc(s.code)}" aria-label="เพิ่มคนในร้าน ${esc(s.code)}">+ เพิ่ม</button>`}</div>
       <div class="tl-lane${h ? ' timed' : ''}" style="height:${lanes * 34 + 6}px">${gridLines(lo)}${openSeg}${gapEls}${bars}</div></div>`;
   }).join('');
 
@@ -681,7 +682,7 @@ function rosterHTML() {
   const missing = (r.people || []).filter((p) => !inRoster.has(p.id));
   const missingHTML = missing.length && !readOnly ? `<section class="ros-missing"><b>ยังไม่ลงตาราง</b> <span class="note">แตะชื่อเพื่อใส่</span>
     <div class="chips">${missing.map((p) => `<button class="pchip" type="button" data-act="ros-add" data-pid="${esc(p.id)}" data-shop="${esc(p.shop_code || '')}">${esc(p.nickname)}${p.shop_code ? ` <small>${esc(p.shop_code)}</small>` : ''}</button>`).join('')}</div></section>` : '';
-  const emptyHint = !items.length && !readOnly && (src.yesterday || src.lastweek) ? `<div class="row-btns">${src.yesterday ? '<button class="btn" type="button" data-act="ros-init" data-src="yesterday">คัดลอกจากเมื่อวานแทน</button>' : ''}${src.lastweek ? '<button class="btn" type="button" data-act="ros-init" data-src="lastweek">คัดลอกจากสัปดาห์ก่อนแทน</button>' : ''}</div>` : '';
+  const emptyHint = !items.length && !readOnly && (src.yesterday || src.lastweek || src.latest) ? `<div class="row-btns">${src.yesterday ? '<button class="btn" type="button" data-act="ros-init" data-src="yesterday">คัดลอกจากเมื่อวานแทน</button>' : src.latest ? `<button class="btn" type="button" data-act="ros-init" data-src="latest">คัดลอกจาก ${dShort(src.latest)} แทน</button>` : ''}${src.lastweek ? '<button class="btn" type="button" data-act="ros-init" data-src="lastweek">คัดลอกจากสัปดาห์ก่อนแทน</button>' : ''}</div>` : '';
   const legend = `<div class="tl-legend"><span><i class="lg-bar"></i>มีคนอยู่</span><span><i class="lg-gap"></i>ร้านเปิดแต่ไม่มีคน</span><span><i class="lg-closed"></i>ร้านปิด</span><span><i class="lg-open"></i>${OPEN_END}</span></div>`;
 
   let main = '';
