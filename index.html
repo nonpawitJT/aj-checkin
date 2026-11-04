@@ -250,6 +250,16 @@ table.t tbody tr[data-act]{cursor:pointer}
 .check input{width:24px;height:24px;accent-color:var(--action);flex:none}
 .tag.test{color:var(--sign-ink);background:var(--sign)}
 .tag.warn{color:var(--warn);background:var(--warn-bg)}
+.tag.ok{color:var(--ok);background:var(--ok-bg)}
+.release-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.release-btn svg{width:20px;height:20px}
+.rel-chip{display:inline-flex;align-items:center;gap:8px;background:var(--ok-bg);color:var(--ok);border-radius:999px;padding:4px 6px 4px 12px;font-weight:700;font-size:.92rem}
+.rel-chip button{appearance:none;border:1.5px solid var(--ok);background:var(--surface);color:var(--ok);border-radius:999px;padding:2px 10px;min-height:32px;font-weight:700;cursor:pointer}
+.rel-chip button[data-armed]{background:var(--bad);border-color:var(--bad);color:#fff}
+.shop-head .tl-add,.shop-head .tag{margin-left:auto}
+.shop-head .note + .tl-add,.shop-head .note + .tag{margin-left:8px}
+.shopgrid button small{display:block;font:600 .7rem/1 var(--font-body);color:var(--ok)}
+.pass-note.release{background:var(--ok-bg);color:var(--ok);font-weight:600}
 .banner.ok{border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
 /* roster (จัดเวร) */
 .rdays{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 6px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}

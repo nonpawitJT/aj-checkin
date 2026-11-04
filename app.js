@@ -390,8 +390,10 @@ VIEWS.st_today = {
     if (!d.in) action = `<button class="btn-primary" type="button" data-act="punch" data-kind="in">${svg('cam', 26)}ถ่ายรูปเข้างาน</button>`;
     else if (!d.out) action = `<button class="btn-primary" type="button" data-act="punch" data-kind="out">${svg('cam', 26)}ถ่ายรูปปิดร้าน / ออกงาน</button><p class="note center">ตอนปิดร้าน ถ่ายให้เห็นตัวเองกับหน้าร้าน</p>`;
     else action = '<button class="btn-primary" type="button" disabled>ลงเวลาครบแล้ว</button>';
-    const hint = todayHint(d);
-    const note = (d.shop && d.shop !== p.shop_code ? `<div class="pass-note"><span class="tag">ไปช่วยร้าน ${esc(d.shop)}</span> วันนี้ลงเวลาที่ร้าน ${esc(d.shop)}</div>` : '')
+    const rel = S.todayData && S.todayData.release;
+    const hint = rel && d.in && !d.out ? `<span class="t-ok">ร้านกลับก่อนได้แล้ว ถ่ายรูปออกงานได้เลย</span>` : todayHint(d);
+    const note = (rel ? `<div class="pass-note release"><span class="tag ok">กลับก่อนได้</span> ร้าน ${esc(rel.shop)} กลับได้ตั้งแต่ ${esc(rel.from)} น.${rel.note ? ` · ${esc(rel.note)}` : ''} ไม่นับว่าออกก่อนเวลา</div>` : '')
+      + (d.shop && d.shop !== p.shop_code ? `<div class="pass-note"><span class="tag">ไปช่วยร้าน ${esc(d.shop)}</span> วันนี้ลงเวลาที่ร้าน ${esc(d.shop)}</div>` : '')
       + (d.note ? `<div class="pass-note"><span class="tag">หมายเหตุกะ</span> ${esc(d.note)}</div>`
         : !d.has_shift ? '<div class="pass-note">ผู้จัดการยังไม่ได้จัดกะวันนี้ ลงเวลาได้ตามปกติ</div>' : '');
     return `<article class="pass" aria-label="ลงเวลาวันนี้">
@@ -465,6 +467,12 @@ VIEWS.adm_board = {
       r.pending_absences ? `<button class="banner bad" type="button" data-act="tab" data-t="notices">มีวันขาดงานรอยืนยัน ${r.pending_absences} รายการ</button>` : '',
       r.rosters_pending ? `<button class="banner" type="button" data-act="tab" data-t="roster">ตารางเวรรออนุมัติ ${r.rosters_pending} วัน</button>` : '',
     ].join('');
+    const rels = r.releases || [], relOf = (code) => rels.find((x) => x.shop === code);
+    const canRelease = date <= today;
+    const releaseBar = canRelease ? `<div class="release-bar">
+        <button class="btn release-btn" type="button" data-act="release-open">${svg('clock')}ให้ร้านกลับก่อนเวลา</button>
+        ${rels.map((x) => `<span class="rel-chip">ร้าน ${esc(x.shop)} กลับได้ตั้งแต่ ${esc(x.from)} น.${x.note ? ` · ${esc(x.note)}` : ''}
+          <button type="button" data-act="release-cancel" data-s="${esc(x.shop)}" data-confirm="แตะอีกครั้งเพื่อยกเลิก">ยกเลิก</button></span>`).join('')}</div>` : '';
     const rt = r.roster_tomorrow;
     const tomorrowBanner = date === today ? `<button class="banner ${rt === 'approved' ? 'ok' : rt === 'submitted' ? '' : 'bad'}" type="button" data-act="ros-open" data-d="${addDays(today, 1)}">ตารางเวรพรุ่งนี้: ${rt === 'approved' ? 'อนุมัติแล้ว' : rt === 'submitted' ? 'รออนุมัติ' : rt === 'draft' ? 'กำลังจัด (ยังไม่ส่ง)' : 'ยังไม่ได้จัด'}</button>` : '';
     const shops = S.shops.map((s) => {
@@ -479,18 +487,39 @@ VIEWS.adm_board = {
           <span class="item-line">${stateChip(d)}${times && d.state !== 'done' ? `<span class="item-sub num">${times}</span>` : d.state === 'done' ? `<span class="item-sub num">เข้า ${hm(d.in)}</span>` : ''}</span>
           ${d.note ? `<span class="item-sub">${esc(d.note)}</span>` : ''}</span></button></li>`;
       }).join('');
-      return `<section class="panel"><div class="shop-head">${shopGate(s.code)}<span class="note">เข้ากะ ${working} จาก ${list.length} คน</span></div><ul class="list">${rows}</ul></section>`;
+      const rl = relOf(s.code);
+      const relTag = rl ? `<span class="tag ok">กลับก่อนได้ ${esc(rl.from)}</span>`
+        : canRelease ? `<button class="tl-add" type="button" data-act="release-open" data-s="${esc(s.code)}">ให้กลับก่อน</button>` : '';
+      return `<section class="panel"><div class="shop-head">${shopGate(s.code)}<span class="note">เข้ากะ ${working} จาก ${list.length} คน</span>${relTag}</div><ul class="list">${rows}</ul></section>`;
     }).join('');
     return `<div class="stack">
       <div class="datenav"><button class="icon-btn" type="button" data-act="board-day" data-d="-1" aria-label="วันก่อนหน้า">‹</button>
         <div class="datenav-label"><span class="k">${date === today ? 'วันนี้' : date < today ? 'ย้อนหลัง' : 'ล่วงหน้า'}</span><strong>${dLong(date)}</strong></div>
         <button class="icon-btn" type="button" data-act="board-day" data-d="1" aria-label="วันถัดไป">›</button></div>
       ${date !== today ? '<button class="btn quiet" type="button" data-act="board-day" data-d="0">กลับมาวันนี้</button>' : ''}
-      ${banners}${tomorrowBanner}${stats}
+      ${banners}${tomorrowBanner}${stats}${releaseBar}
       ${shops ? `<div class="shop-grid">${shops}</div>` : '<p class="panel empty">ยังไม่มีพนักงานในระบบ ไปเพิ่มได้ที่เมนู "พนักงาน" หรือให้พนักงานเปิดแอปแล้วลงทะเบียนเอง</p>'}
       <p class="note center">แตะชื่อเพื่อดูรูป แก้เวลา หรือบันทึกความผิด</p></div>`;
   },
 };
+function openRelease(code) {
+  const now = new Date();
+  S.edit = { shops: new Set(code ? [code] : []) };
+  const released = new Set((S.board.releases || []).map((x) => x.shop));
+  sheet(`<h3>ให้ร้านกลับก่อนเวลา</h3><p class="note">${dLong(S.board.date)} · พนักงานร้านที่เลือก ถ่ายรูปออกงานหลังเวลานี้ จะไม่ถูกนับว่าออกก่อนเวลา</p>
+    <div class="field"><span class="lbl">ร้าน <span class="note">เลือกได้หลายร้าน</span></span>
+      <div class="shopgrid" id="rl-shops">${S.shops.map((s) => `<button type="button" data-act="rl-shop" data-s="${esc(s.code)}">${esc(s.code)}${released.has(s.code) ? '<small>แล้ว</small>' : ''}</button>`).join('')}</div>
+      <button class="btn quiet" type="button" data-act="rl-all" style="justify-self:start">เลือกทุกร้าน</button></div>
+    <div class="grid2"><div class="field"><label for="rl-from">กลับได้ตั้งแต่</label><input type="time" id="rl-from" value="${pad(now.getHours())}:${pad(now.getMinutes())}"></div>
+      <div class="field"><label for="rl-note">เหตุผล</label><input type="text" id="rl-note" maxlength="60" value="ลูกค้าหมดแล้ว"></div></div>
+    <p class="err" id="sheet-err" role="alert"></p>
+    <div class="sheet-actions"><span class="spacer"></span><button class="btn" type="button" data-act="close">ยกเลิก</button>
+      <button class="btn solid" type="button" data-act="rl-save">ให้กลับก่อน</button></div>`);
+  syncRelease();
+}
+function syncRelease() {
+  document.querySelectorAll('#rl-shops button').forEach((b) => b.setAttribute('aria-pressed', String(S.edit.shops.has(b.dataset.s))));
+}
 function openBoardPerson(id) {
   const p = (S.board.people || []).find((x) => x.id === id);
   if (!p) return;
@@ -1210,6 +1239,21 @@ const ACT = {
   'plan-week': (el) => { S.weekStart = addDays(S.weekStart, +el.dataset.d); load(); },
   'go-week': () => { S.weekStart = mondayOf(S.rosterDate || S.today); if (S.mode === 'admin') S.adm = 'plan'; else S.tab = 'plan'; window.scrollTo(0, 0); load(); },
   'ros-notes-edit': () => openNotes(),
+  'release-open': (el) => openRelease(el.dataset.s || ''),
+  'rl-shop': (el) => { const c = el.dataset.s, set = S.edit.shops; if (set.has(c)) set.delete(c); else set.add(c); syncRelease(); },
+  'rl-all': () => { S.shops.forEach((x) => S.edit.shops.add(x.code)); syncRelease(); },
+  'rl-save': (el) => busy(el, async () => {
+    const shops = Array.from(S.edit.shops), from = $('#rl-from').value;
+    if (!shops.length) return sheetErr('กรุณาเลือกร้าน');
+    if (!from) return sheetErr('กรุณาใส่เวลา');
+    try {
+      await api('adm_release', { date: S.board.date, shops, from, note: $('#rl-note').value.trim() });
+      closeSheet(); toast(`ให้ร้าน ${shops.join(', ')} กลับก่อนได้แล้ว`); load();
+    } catch (e) { sheetErr(e.message); }
+  }),
+  'release-cancel': (el) => busy(el, async () => {
+    try { await api('adm_release_cancel', { date: S.board.date, shop: el.dataset.s }); toast(`ยกเลิกของร้าน ${el.dataset.s} แล้ว`); load(); } catch (e) { toast(e.message); }
+  }),
   'shop-hours': (el) => openShopHours(el.dataset.s),
   'sh-save': (el) => busy(el, async () => {
     const open = $('#sh-open').value, openEnd = $('#sh-openend').checked, close = openEnd ? '' : $('#sh-close').value;
