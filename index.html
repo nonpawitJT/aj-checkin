@@ -251,10 +251,14 @@ table.t tbody tr[data-act]{cursor:pointer}
 .tag.test{color:var(--sign-ink);background:var(--sign)}
 .tag.warn{color:var(--warn);background:var(--warn-bg)}
 .tag.ok{color:var(--ok);background:var(--ok-bg)}
-.release-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.release-btn svg{width:20px;height:20px}
-.rel-chip{display:inline-flex;align-items:center;gap:8px;background:var(--ok-bg);color:var(--ok);border-radius:999px;padding:4px 6px 4px 12px;font-weight:700;font-size:.92rem}
-.rel-chip button{appearance:none;border:1.5px solid var(--ok);background:var(--surface);color:var(--ok);border-radius:999px;padding:2px 10px;min-height:32px;font-weight:700;cursor:pointer}
+.release-bar{display:grid;gap:8px;width:100%;max-width:640px;margin-inline:auto}
+.release-btn{appearance:none;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:62px;padding:12px 18px;border-radius:16px;border:2px solid #E0AE00;background:#FFD43B;color:#2B2100;font-size:1.18rem;font-weight:700;cursor:pointer;box-shadow:0 3px 0 #E0AE00}
+.release-btn:hover{background:#FFCB1A}
+.release-btn:active{transform:translateY(2px);box-shadow:0 1px 0 #E0AE00}
+.release-btn:focus-visible{outline:3px solid var(--action);outline-offset:3px}
+.release-btn svg{width:24px;height:24px}
+.rel-chip{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--ok-bg);color:var(--ok);border-radius:12px;padding:8px 8px 8px 14px;font-weight:600;font-size:.95rem}
+.rel-chip button{appearance:none;flex:none;border:1.5px solid var(--ok);background:var(--surface);color:var(--ok);border-radius:999px;padding:4px 14px;min-height:38px;font-weight:700;cursor:pointer}
 .rel-chip button[data-armed]{background:var(--bad);border-color:var(--bad);color:#fff}
 .shop-head .tl-add,.shop-head .tag{margin-left:auto}
 .shop-head .note + .tl-add,.shop-head .note + .tag{margin-left:8px}
@@ -393,7 +397,8 @@ table.week .shift-btn{min-width:0;width:100%;padding:4px 6px;font-size:.9rem;pos
   #app.admin .nav button{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;font-size:1.02rem;min-height:52px;padding:0 14px}
   #app.admin .nav .dot{position:static;margin-left:auto}
   #app.admin .shop-grid{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
-  #app.admin .stats{max-width:760px}
+  #app.admin .stats{max-width:760px;width:100%;margin-inline:auto}
+  #app.admin .release-bar{max-width:760px}
   #app.admin .ros-bar{bottom:16px}
 }
 </style>

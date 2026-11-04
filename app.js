@@ -470,9 +470,9 @@ VIEWS.adm_board = {
     const rels = r.releases || [], relOf = (code) => rels.find((x) => x.shop === code);
     const canRelease = date <= today;
     const releaseBar = canRelease ? `<div class="release-bar">
-        <button class="btn release-btn" type="button" data-act="release-open">${svg('clock')}ให้ร้านกลับก่อนเวลา</button>
-        ${rels.map((x) => `<span class="rel-chip">ร้าน ${esc(x.shop)} กลับได้ตั้งแต่ ${esc(x.from)} น.${x.note ? ` · ${esc(x.note)}` : ''}
-          <button type="button" data-act="release-cancel" data-s="${esc(x.shop)}" data-confirm="แตะอีกครั้งเพื่อยกเลิก">ยกเลิก</button></span>`).join('')}</div>` : '';
+        <button class="release-btn" type="button" data-act="release-open">${svg('clock')}ให้ร้านกลับก่อนเวลา</button>
+        ${rels.map((x) => `<div class="rel-chip"><span>ร้าน <b>${esc(x.shop)}</b> กลับได้ตั้งแต่ ${esc(x.from)} น.${x.note ? ` · ${esc(x.note)}` : ''}</span>
+          <button type="button" data-act="release-cancel" data-s="${esc(x.shop)}" data-confirm="แตะอีกครั้งเพื่อยกเลิก">ยกเลิก</button></div>`).join('')}</div>` : '';
     const rt = r.roster_tomorrow;
     const tomorrowBanner = date === today ? `<button class="banner ${rt === 'approved' ? 'ok' : rt === 'submitted' ? '' : 'bad'}" type="button" data-act="ros-open" data-d="${addDays(today, 1)}">ตารางเวรพรุ่งนี้: ${rt === 'approved' ? 'อนุมัติแล้ว' : rt === 'submitted' ? 'รออนุมัติ' : rt === 'draft' ? 'กำลังจัด (ยังไม่ส่ง)' : 'ยังไม่ได้จัด'}</button>` : '';
     const shops = S.shops.map((s) => {
@@ -488,8 +488,7 @@ VIEWS.adm_board = {
           ${d.note ? `<span class="item-sub">${esc(d.note)}</span>` : ''}</span></button></li>`;
       }).join('');
       const rl = relOf(s.code);
-      const relTag = rl ? `<span class="tag ok">กลับก่อนได้ ${esc(rl.from)}</span>`
-        : canRelease ? `<button class="tl-add" type="button" data-act="release-open" data-s="${esc(s.code)}">ให้กลับก่อน</button>` : '';
+      const relTag = rl ? `<span class="tag ok">กลับก่อนได้ ${esc(rl.from)}</span>` : '';
       return `<section class="panel"><div class="shop-head">${shopGate(s.code)}<span class="note">เข้ากะ ${working} จาก ${list.length} คน</span>${relTag}</div><ul class="list">${rows}</ul></section>`;
     }).join('');
     return `<div class="stack">
