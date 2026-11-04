@@ -126,6 +126,7 @@ async function loadMe() {
   S.lineName = r.line_name || '';
   S.me = r.person;
   S.actingAs = !!r.acting_as;
+  S.dev = !!r.dev;
   route();
 }
 // Rich menu buttons open the app with ?tab=today|shifts|history
@@ -133,7 +134,7 @@ let deepLink = null;
 try { deepLink = new URLSearchParams(location.search).get('tab'); } catch (e) { /* ignore */ }
 function route() {
   const p = S.me;
-  if (!p) return renderPhone('');
+  if (!p) return S.dev ? renderDevHome() : renderPhone('');
   if (p.status === 'pending') return renderPending();
   if (p.status === 'inactive') return renderInactive();
   if (p.role !== 'admin') S.mode = 'staff';
@@ -344,6 +345,12 @@ function renderPending() {
   bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">ส่งข้อมูลแล้ว</h1>
     <p>รอผู้จัดการอนุมัติ เมื่ออนุมัติแล้ว เปิดแอปนี้อีกครั้งเพื่อเริ่มลงเวลา</p></div>
     <button class="btn wide" type="button" data-act="reload-me">ตรวจสอบอีกครั้ง</button></div>`);
+}
+/* A developer account is not a staff record: it only opens the monitor and acts as other people from there. */
+function renderDevHome() {
+  bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">บัญชีผู้ดูแลระบบ</h1>
+    <p>บัญชีนี้ไม่อยู่ในรายชื่อพนักงาน เปิดหน้า Monitor เพื่อดูระบบ หรือเลือกใช้งานในฐานะคนอื่น</p></div>
+    <a class="btn solid wide" href="monitor.html" style="text-decoration:none">เปิดหน้า Monitor</a></div>`);
 }
 function renderInactive() {
   bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">บัญชีนี้ถูกปิดใช้งาน</h1>
