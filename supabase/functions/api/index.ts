@@ -97,6 +97,7 @@ const UPLOADS: Record<string, { key: string; prefix: string }[]> = {
   punch: [{ key: "photo", prefix: "punch" }],
   register: [{ key: "face_photo", prefix: "face" }],
   adm_notice_add: [{ key: "photo", prefix: "notice" }],
+  my_face: [{ key: "face_photo", prefix: "face" }],
 };
 const PHOTO_KEYS = new Set(["photo", "face_photo", "in_photo", "out_photo"]);
 

@@ -435,7 +435,11 @@ VIEWS.st_history = {
     const rows = (r.days || []).slice().reverse().map((d) => `<li class="day-row${d.date === r.today ? ' today' : ''}"><span class="d">${dShort(d.date)}</span>
       <span>${d.off ? '<span class="t-bad">หยุด</span>' : `<span class="num">${d.has_shift ? shiftText(d) : 'ไม่มีกะ'}</span>`}${d.in ? ` · เข้า <span class="num">${hm(d.in)}</span>` : ''}${d.out ? ` · ออก <span class="num">${hm(d.out)}</span>` : ''}</span>
       ${dayNotes(d) ? `<span class="x">${dayNotes(d)}</span>` : ''}</li>`).join('');
-    return `<div class="stack"><div class="view-head"><h1 class="view-title">ประวัติของฉัน</h1>
+    const me = S.me;
+    const meCard = `<section class="panel me-card"><div class="me-row">${avatar(me, 'lg')}<div class="item-main"><b class="me-name">${esc(me.nickname)}</b>
+        <span class="item-sub">${me.shop_code ? `ร้าน ${esc(me.shop_code)} · ` : ''}<span class="num">${esc(fmtPhone(me.phone))}</span></span></div></div>
+      <button class="btn wide" type="button" data-act="my-face">${svg('cam', 22)}${me.face_photo ? 'เปลี่ยนรูปประจำตัว' : 'ใส่รูปประจำตัว'}</button></section>`;
+    return `<div class="stack">${meCard}<div class="view-head"><h1 class="view-title">ประวัติของฉัน</h1>
       <div class="field" style="min-width:12rem"><label class="vh" for="hist-month">เดือน</label><select id="hist-month">${opts}</select></div></div>
       <div class="tiles"><div class="panel tile"><span class="k">มาทำงาน</span><span class="v">${t.worked || 0}</span>วัน</div>
         <div class="panel tile ${t.late_n ? 'warn' : ''}"><span class="k">มาสาย</span><span class="v">${t.late_n || 0}</span>ครั้ง · ${t.late_m || 0} นาที</div>
@@ -1204,6 +1208,26 @@ const ACT = {
     } catch (e) { toast('เปิดรูปนี้ไม่ได้ ลองถ่ายใหม่'); }
   }),
   'reg-back': () => renderPhone(''),
+
+  /* Staff replace their own profile photo (front camera, same as at registration) */
+  'my-face': () => pickPhoto(camUser, async (f) => {
+    sheet('<p class="loading">กำลังเตรียมรูป…</p>');
+    try {
+      S.faceNew = await makePhoto(f, []);
+      sheet(`<h3>รูปประจำตัวใหม่</h3><div class="face-preview"><img src="${S.faceNew}" alt="รูปประจำตัวใหม่"></div>
+        <p class="note">ถ่ายหน้าตรงให้เห็นหน้าชัด ผู้จัดการใช้รูปนี้ดูเทียบกับรูปตอนลงเวลา</p>
+        <p class="err" id="sheet-err" role="alert"></p>
+        <div class="sheet-actions"><button class="btn" type="button" data-act="my-face">ถ่ายใหม่</button><button class="btn solid" type="button" data-act="my-face-save">ใช้รูปนี้</button></div>`);
+    } catch (e) { closeSheet(); toast('เปิดรูปนี้ไม่ได้ ลองถ่ายใหม่'); }
+  }),
+  'my-face-save': (el) => busy(el, async () => {
+    if (!S.faceNew) return;
+    try {
+      const r = await api('my_face', { face_photo: S.faceNew });
+      S.me = r.person; S.faceNew = null;
+      closeSheet(); paint(); toast('เปลี่ยนรูปประจำตัวแล้ว');
+    } catch (e) { sheetErr(e.message); }
+  }),
 
   punch: (el) => {
     const kind = el.dataset.kind, word = kind === 'in' ? 'เข้างาน' : 'ออกงาน';

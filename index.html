@@ -241,6 +241,13 @@ table.t tbody tr[data-act]{cursor:pointer}
 .shopgrid button[aria-pressed="true"]{background:var(--sign);border-color:var(--sign-ink);color:var(--sign-ink)}
 .face-pick{display:flex;gap:12px;align-items:center}
 .face-pick .avatar{width:88px;height:88px}
+/* staff: own profile card on the history page */
+.me-card{display:grid;gap:14px;padding:16px}
+.me-row{display:flex;gap:14px;align-items:center}
+.me-row .avatar{width:76px;height:76px;border-radius:14px}
+.me-name{display:block;font-size:1.25rem;line-height:1.3}
+.face-preview{display:grid;place-items:center;margin:4px 0 8px}
+.face-preview img{width:min(240px,70vw);aspect-ratio:1;object-fit:cover;border-radius:18px;display:block}
 /* shop panels side by side when there is room */
 .shop-grid{display:grid;gap:16px;align-items:start}
 /* test mode bar (developer only) */
