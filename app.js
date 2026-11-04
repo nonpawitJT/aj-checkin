@@ -348,8 +348,8 @@ function renderPending() {
 }
 /* A developer account is not a staff record: it only opens the monitor and acts as other people from there. */
 function renderDevHome() {
-  bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">บัญชีผู้ดูแลระบบ</h1>
-    <p>บัญชีนี้ไม่อยู่ในรายชื่อพนักงาน เปิดหน้า Monitor เพื่อดูระบบ หรือเลือกใช้งานในฐานะคนอื่น</p></div>
+  bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">บัญชีแอดมิน</h1>
+    <p>บัญชีนี้เป็นแอดมินระบบ ไม่อยู่ในรายชื่อพนักงาน เปิดหน้า Monitor เพื่อดูระบบ หรือเลือกใช้งานในฐานะคนอื่น</p></div>
     <a class="btn solid wide" href="monitor.html" style="text-decoration:none">เปิดหน้า Monitor</a></div>`);
 }
 function renderInactive() {
