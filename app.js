@@ -46,6 +46,7 @@ const ICON = {
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   person: '<circle cx="10" cy="8" r="4"/><path d="M3 21c1-4 3.8-6 7-6s6 2 7 6M19 8v6M16 11h6"/>',
   cam: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
   chat: '<path d="M4 5h16v11H9l-5 4z"/>',
   clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
 };
@@ -438,7 +439,9 @@ VIEWS.st_history = {
     const me = S.me;
     const meCard = `<section class="panel me-card"><div class="me-row">${avatar(me, 'lg')}<div class="item-main"><b class="me-name">${esc(me.nickname)}</b>
         <span class="item-sub">${me.shop_code ? `ร้าน ${esc(me.shop_code)} · ` : ''}<span class="num">${esc(fmtPhone(me.phone))}</span></span></div></div>
-      <button class="btn wide" type="button" data-act="my-face">${svg('cam', 22)}${me.face_photo ? 'เปลี่ยนรูปประจำตัว' : 'ใส่รูปประจำตัว'}</button></section>`;
+      <div><span class="lbl">${me.face_photo ? 'เปลี่ยนรูปประจำตัว' : 'ใส่รูปประจำตัว'}</span>
+        <div class="face-btns"><button class="btn" type="button" data-act="my-face" data-src="cam">${svg('cam', 22)}ถ่ายรูปใหม่</button>
+          <button class="btn" type="button" data-act="my-face" data-src="pick">${svg('image', 22)}เลือกรูปจากอัลบั้ม</button></div></div></section>`;
     return `<div class="stack">${meCard}<div class="view-head"><h1 class="view-title">ประวัติของฉัน</h1>
       <div class="field" style="min-width:12rem"><label class="vh" for="hist-month">เดือน</label><select id="hist-month">${opts}</select></div></div>
       <div class="tiles"><div class="panel tile"><span class="k">มาทำงาน</span><span class="v">${t.worked || 0}</span>วัน</div>
@@ -1209,17 +1212,20 @@ const ACT = {
   }),
   'reg-back': () => renderPhone(''),
 
-  /* Staff replace their own profile photo (front camera, same as at registration) */
-  'my-face': () => pickPhoto(camUser, async (f) => {
-    sheet('<p class="loading">กำลังเตรียมรูป…</p>');
-    try {
-      S.faceNew = await makePhoto(f, []);
-      sheet(`<h3>รูปประจำตัวใหม่</h3><div class="face-preview"><img src="${S.faceNew}" alt="รูปประจำตัวใหม่"></div>
-        <p class="note">ถ่ายหน้าตรงให้เห็นหน้าชัด ผู้จัดการใช้รูปนี้ดูเทียบกับรูปตอนลงเวลา</p>
-        <p class="err" id="sheet-err" role="alert"></p>
-        <div class="sheet-actions"><button class="btn" type="button" data-act="my-face">ถ่ายใหม่</button><button class="btn solid" type="button" data-act="my-face-save">ใช้รูปนี้</button></div>`);
-    } catch (e) { closeSheet(); toast('เปิดรูปนี้ไม่ได้ ลองถ่ายใหม่'); }
-  }),
+  /* Staff replace their own profile photo: front camera, or a photo already on the phone */
+  'my-face': (el) => {
+    const pick = el.dataset.src === 'pick';
+    pickPhoto(pick ? pickAny : camUser, async (f) => {
+      sheet('<p class="loading">กำลังเตรียมรูป…</p>');
+      try {
+        S.faceNew = await makePhoto(f, []);
+        sheet(`<h3>รูปประจำตัวใหม่</h3><div class="face-preview"><img src="${S.faceNew}" alt="รูปประจำตัวใหม่"></div>
+          <p class="note">ใช้รูปหน้าตรงที่เห็นหน้าชัด ผู้จัดการใช้รูปนี้ดูเทียบกับรูปตอนลงเวลา</p>
+          <p class="err" id="sheet-err" role="alert"></p>
+          <div class="sheet-actions"><button class="btn" type="button" data-act="my-face" data-src="${pick ? 'pick' : 'cam'}">${pick ? 'เลือกรูปอื่น' : 'ถ่ายใหม่'}</button><button class="btn solid" type="button" data-act="my-face-save">ใช้รูปนี้</button></div>`);
+      } catch (e) { closeSheet(); toast(pick ? 'เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น' : 'เปิดรูปนี้ไม่ได้ ลองถ่ายใหม่'); }
+    });
+  },
   'my-face-save': (el) => busy(el, async () => {
     if (!S.faceNew) return;
     try {
