@@ -52,6 +52,11 @@ const ICON = {
   refresh: '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>',
   chat: '<path d="M4 5h16v11H9l-5 4z"/>',
   clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
+  otplus: '<circle cx="11" cy="13" r="8"/><path d="M11 9v4l2.5 1.5"/><path d="M19 2v5M16.5 4.5h5"/>',
+  round2: '<path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.8"/>',
+  out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
 };
 const LOGO = '<img class="logo" src="logo-96.png" srcset="logo-96.png 1x, logo-192.png 2x" alt="A&amp;J group" width="44" height="44">';
 const LOGO_BIG = '<img class="logo" src="logo-192.png" srcset="logo-192.png 1x, logo-512.png 2x" alt="A&amp;J group" width="104" height="104">';
@@ -257,15 +262,15 @@ function stateChip(d) {
 }
 const NOT_LIVE = /ไม่ได้ถ่ายผ่านกล้อง/;
 const okNote = (n) => (n ? ` (${esc(n)})` : '');
-function dayNotes(d) {
+function dayNotes(d, lean) {
   const out = [];
-  if (d.late) out.push(d.late_ok ? `<span class="t-ok">สาย ${d.late} นาที · อนุญาตแล้ว${okNote(d.late_ok_note)}</span>` : `<span class="t-warn">สาย ${d.late} นาที</span>`);
+  if (d.late && !lean) out.push(d.late_ok ? `<span class="t-ok">สาย ${d.late} นาที · อนุญาตแล้ว${okNote(d.late_ok_note)}</span>` : `<span class="t-warn">สาย ${d.late} นาที</span>`);
   if (d.early) out.push(d.early_ok ? `<span class="t-ok">ออกก่อน ${d.early} นาที · อนุญาตแล้ว${okNote(d.early_ok_note)}</span>` : `<span class="t-warn">ออกก่อน ${d.early} นาที</span>`);
   if (d.state === 'noout') out.push('<span class="t-bad">ไม่ได้ลงเวลาออก</span>');
   if (d.state === 'absent') out.push('<span class="t-bad">ไม่ได้เข้างาน</span>');
   if (d.leave) out.push('<span class="t-ok">ลา (อนุมัติแล้ว)</span>');
-  if (d.ot) out.push(`<span class="t-ok">OT ${d.ot} ครั้ง · ${baht(d.ot_baht)}</span>`);
-  if (d.round2) out.push(`<span class="t-ok">มา 2 รอบ +${baht(d.round2_baht)}</span>`);
+  if (d.ot && !lean) out.push(`<span class="t-ok">OT ${d.ot} ครั้ง · ${baht(d.ot_baht)}</span>`);
+  if (d.round2 && !lean) out.push(`<span class="t-ok">มา 2 รอบ +${baht(d.round2_baht)}</span>`);
   if (d.forgot) out.push(`<span class="t-muted">ลืมเช็คเอาท์${/แอดมิน/.test(d.out_note || '') ? ' · แอดมินกด' : ''} (ไม่คิด OT)</span>`);
   if (d.ot_waived) out.push('<span class="t-muted">หัวหน้าไม่นับ OT วันนี้</span>');
   [['in_note', 'เข้างาน'], ['out_note', 'ออกงาน']].forEach(([k, w]) => {
@@ -596,14 +601,41 @@ VIEWS.st_shifts = {
     S.myShifts = a; S.myLeaves = b; S.today = a.today || S.today;
   },
   render() {
-    const r = S.myShifts, lv = S.myLeaves || {};
-    const rows = (r.days || []).map((d) => `<li class="day-row${d.date === r.today ? ' today' : ''}"><span class="d">${d.date === r.today ? 'วันนี้' : dShort(d.date)}</span>
-      <span class="${d.off ? 't-bad' : d.has_shift ? 'num' : 't-muted'}">${!d.has_shift && d.pending ? 'ตารางรอหัวหน้าอนุมัติ' : shiftText(d)}${d.shop && d.shop !== S.me.shop_code ? ` <span class="tag">ร้าน ${esc(d.shop)}</span>` : ''}${d.has_shift && d.pending ? ' <span class="tag warn">มีแก้ไข รออนุมัติ</span>' : ''}${d.leave ? ' <span class="tag ok">ลา</span>' : d.leave_pending ? ' <span class="tag warn">ขอลา รออนุมัติ</span>' : ''}</span>${d.note ? `<span class="x">${esc(d.note)}</span>` : ''}</li>`).join('');
+    const r = S.myShifts, lv = S.myLeaves || {}, days = r.days || [], me = S.me;
+    const next = days.find((d) => d.date >= r.today && d.has_shift && !d.off);
+    let hero = '';
+    if (next) {
+      const nd = parseD(next.date), word = dayWord(next.date, r.today), shop = next.shop || me.shop_code;
+      hero = `<section class="next-shift" aria-label="กะถัดไป"><div class="ns-main">
+          <span class="ns-k">${next.date === r.today ? 'กะวันนี้' : `กะถัดไป${word ? ` · ${word}` : ''}`}</span>
+          <span class="ns-d">${DOW_FULL[nd.getDay()]} ${nd.getDate()} ${MONTHS_S[nd.getMonth()]}</span>
+          <span class="ns-t num">${shiftText(next)}</span>
+          ${next.pending ? '<span class="tag warn">มีแก้ไข รออนุมัติ</span>' : ''}</div>
+        ${shop ? `<div class="gate-big"><span class="gk">ร้าน</span><span class="gv">${esc(shop)}</span></div>` : ''}</section>`;
+    }
+    const rows = days.map((d) => {
+      const dd = parseD(d.date), today = d.date === r.today;
+      let main;
+      if (d.off) main = '<span class="chip plain">วันหยุด</span>';
+      else if (!d.has_shift && d.pending) main = '<span class="chip warn">ตารางรอหัวหน้าอนุมัติ</span>';
+      else if (!d.has_shift) main = '<span class="t-muted">ยังไม่จัดกะ</span>';
+      else main = `<span class="num dd-shift">${shiftText(d)}</span>`;
+      const extra = [
+        d.shop && d.shop !== me.shop_code ? `<span class="help-shop">${shopGate(d.shop)}ไปช่วยร้าน ${esc(d.shop)}</span>` : '',
+        d.has_shift && d.pending ? '<span class="tag warn">มีแก้ไข รออนุมัติ</span>' : '',
+        d.leave ? '<span class="chip ok">ลา</span>' : d.leave_pending ? '<span class="chip warn">ขอลา รออนุมัติ</span>' : '',
+      ].filter(Boolean).join('');
+      return `<li class="dday${today ? ' today' : ''}${d.off ? ' off' : ''}"><span class="dblock"><b>${dd.getDate()}</b><span>${DOW[dd.getDay()]}.</span></span>
+        <div class="dd-main"><div class="dd-top">${main}${today ? '<span class="tag today">วันนี้</span>' : ''}</div>
+          ${extra ? `<div class="dd-chips">${extra}</div>` : ''}${d.note ? `<span class="x">${esc(d.note)}</span>` : ''}</div></li>`;
+    }).join('');
     const items = (lv.items || []).map((l) => leaveItem(l, 'me')).join('');
-    return `<div class="stack"><div><h1 class="view-title">กะของฉัน</h1><p class="note">14 วันข้างหน้า ถ้ามีการเปลี่ยนกะตามไฟลท์ จะเห็นที่นี่ทันที</p></div><ol class="panel list">${rows}</ol>
-      <div class="view-head"><h2 class="section-title">การลาของฉัน</h2><button class="btn solid" type="button" data-act="leave-new">+ ขอลา</button></div>
-      <p class="note">ปีนี้ลาไปแล้ว <b>${lv.year_days || 0}</b> วัน · ต้องขอล่วงหน้าอย่างน้อย 24 ชม. และหัวหน้าต้องอนุมัติก่อน ถ้าป่วยหรือฉุกเฉินให้โทรหาหัวหน้า</p>
-      ${items ? `<ul class="panel list">${items}</ul>` : '<p class="panel empty">ยังไม่เคยขอลา</p>'}</div>`;
+    return `<div class="stack"><div><h1 class="view-title">กะของฉัน</h1><p class="note">14 วันข้างหน้า · ถ้ากะเปลี่ยนตามไฟลท์ จะเห็นที่นี่ทันที</p></div>
+      ${hero}<ol class="panel list">${rows}</ol>
+      <div class="leave-head"><div><h2 class="section-title">การลาของฉัน</h2><span class="k">ปีนี้ลาไปแล้ว <b>${lv.year_days || 0}</b> วัน</span></div>
+        <button class="btn solid" type="button" data-act="leave-new">+ ขอลา</button></div>
+      ${items ? `<ul class="panel list">${items}</ul>` : '<p class="panel empty">ยังไม่เคยขอลา</p>'}
+      <p class="tip">${svg('info', 20)}<span>ขอลาล่วงหน้าอย่างน้อย 24 ชม. หัวหน้าต้องอนุมัติก่อน · ป่วยหรือฉุกเฉิน โทรหาหัวหน้า</span></p></div>`;
   },
 };
 /* One leave request. who: 'me' (staff: cancel while pending) or 'adm' (head: approve / reject / cancel) */
@@ -637,27 +669,46 @@ VIEWS.st_history = {
     S.hist = await api('my_history', { month: S.histMonth });
   },
   render() {
-    const r = S.hist, t = r.totals || {};
-    const opts = monthsBack(6).map((m) => `<option value="${m}"${m === S.histMonth ? ' selected' : ''}>${monthLabel(m)}</option>`).join('');
-    const rows = (r.days || []).slice().reverse().map((d) => `<li class="day-row${d.date === r.today ? ' today' : ''}"><span class="d">${dShort(d.date)}</span>
-      <span>${d.off ? '<span class="t-bad">หยุด</span>' : `<span class="num">${d.has_shift ? shiftText(d) : 'ไม่มีกะ'}</span>`}${d.in ? ` · เข้า <span class="num">${hm(d.in)}</span>` : ''}${d.out ? ` · ออก <span class="num">${hm(d.out)}</span>` : ''}</span>
-      ${dayNotes(d) ? `<span class="x">${dayNotes(d)}</span>` : ''}</li>`).join('');
-    const me = S.me;
-    const meCard = `<section class="panel me-card"><div class="me-row">${avatar(me, 'lg')}<div class="item-main"><b class="me-name">${esc(me.nickname)}</b>
+    const r = S.hist, t = r.totals || {}, me = S.me;
+    const months = monthsBack(6), i = months.indexOf(S.histMonth);
+    const older = i >= 0 && i < months.length - 1 ? months[i + 1] : '', newer = i > 0 ? months[i - 1] : '';
+    const monthNav = `<div class="panel month-nav">
+        <button class="icon-btn" type="button" data-act="hist-go" data-m="${older}" aria-label="เดือนก่อน"${older ? '' : ' disabled'}>‹</button>
+        <div class="month-mid">${S.histMonth === months[0] ? '<span class="k">เดือนนี้</span>' : ''}<strong>${monthLabel(S.histMonth)}</strong></div>
+        <button class="icon-btn" type="button" data-act="hist-go" data-m="${newer}" aria-label="เดือนถัดไป"${newer ? '' : ' disabled'}>›</button></div>`;
+    const meCard = `<section class="panel me-card"><div class="me-row">${avatar(me)}<div class="item-main"><b class="me-name">${esc(me.nickname)}</b>
         <span class="item-sub">${me.shop_code ? `ร้าน ${esc(me.shop_code)} · ` : ''}<span class="num">${esc(fmtPhone(me.phone))}</span></span></div></div>
-      <div><span class="lbl">${me.face_photo ? 'เปลี่ยนรูปประจำตัว' : 'ใส่รูปประจำตัว'}</span>
-        <div class="face-btns"><button class="btn" type="button" data-act="my-face" data-src="cam">${svg('cam', 22)}ถ่ายรูปใหม่</button>
-          <button class="btn" type="button" data-act="my-face" data-src="pick">${svg('image', 22)}เลือกรูปจากอัลบั้ม</button></div></div></section>`;
-    return `<div class="stack">${meCard}<div class="view-head"><h1 class="view-title">ประวัติของฉัน</h1>
-      <div class="field" style="min-width:12rem"><label class="vh" for="hist-month">เดือน</label><select id="hist-month">${opts}</select></div></div>
-      <div class="tiles"><div class="panel tile ${lateCls(t.late_m)}"><span class="k">มาสายรวม</span><span class="v">${fmtN(t.late_m)}</span>นาที · ${t.late_n || 0} ครั้ง${t.late_ok_n ? ` · อนุญาต ${t.late_ok_n} ครั้ง` : ''}</div>
-        <div class="panel tile money"><span class="k">เงินเพิ่มเดือนนี้</span><span class="v">${fmtN(t.extra_baht)}</span>บาท</div>
-        <div class="panel tile ${t.ot_n ? 'ok' : ''}"><span class="k">OT</span><span class="v">${t.ot_n || 0}</span>ครั้ง · ${baht(t.ot_baht)}</div>
-        <div class="panel tile ${t.r2_n ? 'ok' : ''}"><span class="k">มา 2 รอบ</span><span class="v">${t.r2_n || 0}</span>วัน · ${baht(t.r2_baht)}</div>
-        <div class="panel tile"><span class="k">มาทำงาน</span><span class="v">${t.worked || 0}</span>วัน</div>
-        <div class="panel tile"><span class="k">วันลา</span><span class="v">${t.leave_n || 0}</span>วัน</div>
-        <div class="panel tile ${t.early_n ? 'warn' : ''}"><span class="k">ออกก่อนเวลา</span><span class="v">${t.early_n || 0}</span>ครั้ง</div></div>
-      <p class="note">เงินเพิ่ม = เงิน OT + เงินมา 2 รอบ ยังไม่รวมเงินเดือน · สีนาทีสาย เขียว = ไม่สาย ยิ่งแดงยิ่งสายมาก</p>
+      <div class="face-btns" role="group" aria-label="${me.face_photo ? 'เปลี่ยนรูปประจำตัว' : 'ใส่รูปประจำตัว'}"><button class="btn" type="button" data-act="my-face" data-src="cam">${svg('cam', 20)}ถ่ายรูปใหม่</button>
+        <button class="btn" type="button" data-act="my-face" data-src="pick">${svg('image', 20)}รูปจากอัลบั้ม</button></div></section>`;
+    const part = (ic, label, v) => `<div class="money-part"><div class="mp-head"><span class="mp-ic">${svg(ic, 22)}</span><b>${label}</b></div>
+        <span class="mp-v${v ? '' : ' zero'}">${v ? '+' : ''}${baht(v)}</span></div>`;
+    const money = `<section class="money-card" aria-label="เงิน OT เดือนนี้">
+        <div class="money-head"><span class="coin" aria-hidden="true">฿</span><span class="money-line"><span class="money-v">${fmtN(t.extra_baht)}</span><span class="money-u">บาท</span><span class="money-k">เงิน OT เดือนนี้</span></span></div>
+        <div class="money-parts">${part('otplus', 'OT', t.ot_baht)}${part('round2', 'มา 2 รอบ', t.r2_baht)}</div></section>`;
+    const late = t.late_m
+      ? `<section class="late-box" aria-label="มาสายเดือนนี้"><span class="late-ic">${svg('clock', 22)}</span><span class="late-t"><span class="late-k">เวลามาสายรวม</span><b class="late-v">${fmtN(t.late_m)}</b><span class="late-u">นาที</span></span></section>`
+      : `<section class="late-box ok" aria-label="มาสายเดือนนี้"><span class="late-ic">${svg('check', 22)}</span><span class="late-t"><span class="late-k">ไม่มาสายเลย</span></span></section>`;
+    const strip = `<section class="panel att-strip" aria-label="การมาทำงาน">
+        <div class="ok">${svg('check', 24)}<b>${t.worked || 0}</b><span>วันที่มาทำงาน</span></div>
+        <div class="${t.leave_n ? '' : 'zero'}">${svg('cal', 24)}<b>${t.leave_n || 0}</b><span>วันลา</span></div>
+        <div class="${t.early_n ? 'warn' : 'zero'}">${svg('out', 24)}<b>${t.early_n || 0}</b><span>ออกก่อนเวลา</span></div></section>`;
+    const rows = (r.days || []).slice().reverse().map((d) => {
+      const dd = parseD(d.date), today = d.date === r.today;
+      const shift = d.off ? '<span class="chip plain">วันหยุด</span>' : `<span class="num dd-shift">${d.has_shift ? shiftText(d) : 'ไม่มีกะ'}</span>`;
+      const times = d.in ? `เข้า <span class="num">${hm(d.in)}</span>${d.out ? ` · ออก <span class="num">${hm(d.out)}</span>` : today ? ' · ยังไม่ออก' : ''}` : '';
+      const chips = [
+        today && d.in && !d.out ? '<span class="chip ok">กำลังทำงาน</span>' : '',
+        d.late ? (d.late_ok ? `<span class="chip ok">สาย ${d.late} นาที · อนุญาตแล้ว</span>` : `<span class="chip-late">${svg('clock', 18)}สาย ${d.late} นาที</span>`) : '',
+        d.ot ? `<span class="chip ok coin-chip"><span class="coin sm" aria-hidden="true">฿</span>OT ${d.ot} ครั้ง +${baht(d.ot_baht)}</span>` : '',
+        d.round2 ? `<span class="chip ok coin-chip"><span class="coin sm" aria-hidden="true">฿</span>มา 2 รอบ +${baht(d.round2_baht)}</span>` : '',
+      ].filter(Boolean).join('');
+      const notes = dayNotes(d, true);
+      return `<li class="dday${today ? ' today' : ''}${d.off ? ' off' : ''}"><span class="dblock"><b>${dd.getDate()}</b><span>${DOW[dd.getDay()]}.</span></span>
+        <div class="dd-main"><div class="dd-top">${shift}${today ? '<span class="tag today">วันนี้</span>' : ''}</div>
+          ${times ? `<span class="dd-times">${times}</span>` : ''}${chips ? `<div class="dd-chips">${chips}</div>` : ''}${notes ? `<span class="x">${notes}</span>` : ''}</div></li>`;
+    }).join('');
+    return `<div class="stack"><h1 class="view-title">ประวัติของฉัน</h1>${meCard}${monthNav}${money}${late}${strip}
+      <h2 class="section-title">รายวัน</h2>
       ${rows ? `<ol class="panel list">${rows}</ol>` : '<p class="panel empty">ยังไม่มีข้อมูลในเดือนนี้</p>'}</div>`;
   },
 };
@@ -1481,6 +1532,7 @@ const ACT = {
   'reg-back': () => renderPhone(''),
 
   /* Staff replace their own profile photo: front camera, or a photo already on the phone */
+  'hist-go': (el) => { if (!el.dataset.m) return; S.histMonth = el.dataset.m; window.scrollTo(0, 0); load(); },
   'my-face': async (el) => {
     const pick = el.dataset.src === 'pick';
     const use = async (f) => {
