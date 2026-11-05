@@ -77,6 +77,7 @@ class AppError extends Error { constructor(code, msg) { super(msg); this.code = 
 let reloginStarted = false;
 async function api(action, args = {}) {
   let res;
+  const t0 = Date.now();
   try {
     res = await fetch(CFG.API_URL, {
       method: 'POST',
@@ -88,6 +89,7 @@ async function api(action, args = {}) {
   }
   let body = {};
   try { body = await res.json(); } catch (e) { /* ignore */ }
+  if (res.ok && body) syncClock(body.now_ms, t0, Date.now());
   if (!res.ok) {
     if (body.error === 'token_expired') relogin();
     throw new AppError(body.error || 'server', body.message || 'ระบบขัดข้อง ลองใหม่อีกครั้ง');
@@ -154,7 +156,7 @@ function route() {
 const sizeSwitch = () => `<div class="size-switch" role="group" aria-label="ขนาดตัวอักษร"><button type="button" data-act="size" data-s="md" aria-pressed="${size !== 'lg'}">ก</button><button type="button" class="lg" data-act="size" data-s="lg" aria-pressed="${size === 'lg'}">ก+</button></div>`;
 function devBar() {
   if (!ACT_AS || !S.actingAs) return '';
-  const who = S.me ? `${esc(S.me.nickname)}${S.me.role === 'admin' ? ' (ผู้จัดการ)' : S.me.can_schedule ? ' (ผู้จัดเวร)' : ' (พนักงาน)'}` : 'คนอื่น';
+  const who = S.me ? `${esc(S.me.nickname)}${S.me.role === 'admin' ? ' (หัวหน้า)' : S.me.can_schedule ? ' (ผู้จัดการ)' : ' (พนักงาน)'}` : 'คนอื่น';
   return `<div class="devbar"><span>ทดสอบในฐานะ ${who} · บันทึกจริง</span><button type="button" data-act="dev-exit">ออก</button></div>`;
 }
 function topbar(sub, extra) {
@@ -181,7 +183,7 @@ function navItems() {
 }
 function shell(content) {
   const p = S.me, admin = S.mode === 'admin';
-  const sub = admin ? `ผู้จัดการ · ${esc(p.nickname)}` : `${esc(p.nickname)} · ร้าน ${esc(p.shop_code || '-')}`;
+  const sub = admin ? `หัวหน้า · ${esc(p.nickname)}` : `${esc(p.nickname)} · ร้าน ${esc(p.shop_code || '-')}`;
   const extra = p.role === 'admin' && p.shop_code ? `<button class="btn" type="button" data-act="mode">${admin ? 'ลงเวลาของฉัน' : 'หลังบ้าน'}</button>` : '';
   const cur = admin ? (S.adm === 'person' ? S.personBack : S.adm === 'plan' ? 'roster' : S.adm) : (S.tab === 'plan' ? 'roster' : S.tab);
   const nav = navItems().map(([k, label, ic]) => {
@@ -292,14 +294,15 @@ function eventItem(e, opts = {}) {
 }
 
 /* ---------------------------------------------------------------- photos */
-const camUser = $('#cam-user'), pickAny = $('#pick-any');
+const pickAny = $('#pick-any');
 let photoCb = null;
-function pickPhoto(input, cb) { photoCb = cb; input.value = ''; input.click(); }
-[camUser, $('#cam-env'), pickAny].forEach((inp) => inp.addEventListener('change', () => {
-  const f = inp.files && inp.files[0], cb = photoCb;
+/* Album picker: only for changing your own profile photo. Every other photo comes from the in-app camera. */
+function pickPhoto(cb) { photoCb = cb; pickAny.value = ''; pickAny.click(); }
+pickAny.addEventListener('change', () => {
+  const f = pickAny.files && pickAny.files[0], cb = photoCb;
   photoCb = null;
   if (f && cb) cb(f);
-}));
+});
 function makePhoto(file, lines) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file), img = new Image();
@@ -332,58 +335,117 @@ function makePhoto(file, lines) {
   });
 }
 
-/* ---------------------------------------------------------------- in-app camera (punch photos)
-   A file input lets some Android phones pick an old photo from the gallery even with capture="user",
-   so punch photos are taken from a live camera preview inside the app. If the camera cannot be opened
-   here, the phone's own camera is used instead: old photos are refused and the punch is flagged for managers. */
-const CAM = { stream: null, facing: 'user', resolve: null };
+/* ---------------------------------------------------------------- Thai time from the server
+   A phone's clock can be wrong or set by hand, so the photo stamp and the on-screen clock follow the server.
+   Replies that carry now_ms (me, today, punch) re-sync the offset, and opening the camera re-syncs it again.
+   Half the round trip is allowed for. The time saved for a punch is always the server's own. */
+let clockOffset = 0;
+function syncClock(serverMs, t0, t1) {
+  if (typeof serverMs === 'number' && isFinite(serverMs) && t1 - t0 < 4000) clockOffset = serverMs - (t0 + t1) / 2;
+}
+async function resyncClock() {
+  try {
+    const t0 = Date.now();
+    const res = await fetch(CFG.API_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"action":"ping"}' });
+    const b = await res.json();
+    syncClock(Date.parse(b.time), t0, Date.now());
+  } catch (e) { /* keep the last offset */ }
+}
+const serverNow = () => Date.now() + clockOffset;
+/* Wall-clock parts in Thailand (UTC+7, no daylight saving) */
+function thaiParts(ms) {
+  const d = new Date(ms + 7 * 3600000);
+  return { date: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`, h: d.getUTCHours(), m: d.getUTCMinutes(), s: d.getUTCSeconds() };
+}
+const thaiHms = (ms) => { const t = thaiParts(ms); return `${t.h}:${pad(t.m)}:${pad(t.s)}`; };
+const stampTime = (ms) => `${dLong(thaiParts(ms).date)} · ${thaiHms(ms)} น.`;
+
+/* ---------------------------------------------------------------- in-app camera
+   Work photos (punch, registration face, notice evidence) are taken only from a live camera preview inside
+   the app. A file input lets some Android phones pick an old photo from the gallery even with capture="user",
+   so there is no fallback to the phone's camera app or album. */
+const CAM = { stream: null, facing: 'user', resolve: null, tok: 0, tick: null };
 const camSupported = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = () => /Android/i.test(navigator.userAgent);
 function camStop() {
   if (CAM.stream) { CAM.stream.getTracks().forEach((t) => t.stop()); CAM.stream = null; }
 }
-function openCamera(title) {
+/* Resolves with { blob, at } (at = server time of the shot), or null when cancelled. */
+function openCamera(title, opt = {}) {
   return new Promise((resolve) => {
     CAM.resolve = resolve;
+    CAM.facing = opt.facing || 'user';
     let el = $('#cam');
     if (!el) { el = document.createElement('div'); el.id = 'cam'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); document.body.appendChild(el); }
-    el.innerHTML = `<div class="cam-top"><b>${esc(title)}</b><span>ให้เห็นหน้าคุณและหน้าร้าน</span></div>
+    el.innerHTML = `<div class="cam-top"><b>${esc(title)}</b><span>${esc(opt.hint || '')}</span><span class="cam-time">เวลาไทย <b class="num" id="cam-time">${thaiHms(serverNow())}</b> น.</span></div>
       <div class="cam-view"><video id="cam-video" autoplay playsinline muted></video><div id="cam-msg" class="cam-msg"><p>กำลังเปิดกล้อง…</p></div></div>
       <div class="cam-bar"><button class="cam-btn" type="button" data-act="cam-cancel">ยกเลิก</button>
         <button class="cam-shutter" id="cam-shot" type="button" data-act="cam-shot" aria-label="ถ่ายรูป" disabled><i></i></button>
         <button class="cam-btn" type="button" data-act="cam-flip">${svg('refresh', 22)}สลับกล้อง</button></div>`;
     el.hidden = false;
     document.body.classList.add('cam-on');
+    clearInterval(CAM.tick);
+    CAM.tick = setInterval(() => { const t = $('#cam-time'); if (t) t.textContent = thaiHms(serverNow()); }, 1000);
+    resyncClock();
     camStart();
   });
 }
 async function camStart() {
   camStop();
-  const v = $('#cam-video'), msg = $('#cam-msg'), shot = $('#cam-shot');
+  const tok = ++CAM.tok, v = $('#cam-video'), msg = $('#cam-msg'), shot = $('#cam-shot');
   if (!v) return;
   shot.disabled = true;
   msg.innerHTML = '<p>กำลังเปิดกล้อง…</p>'; msg.hidden = false;
   if (!camSupported()) return camFail(null);
+  const gum = (video) => navigator.mediaDevices.getUserMedia({ audio: false, video });
+  let stream;
   try {
-    CAM.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: CAM.facing, width: { ideal: 1280 }, height: { ideal: 1280 } } });
-    if (!$('#cam-video')) { camStop(); return; }
-    v.srcObject = CAM.stream;
-    v.classList.toggle('mirror', CAM.facing === 'user');
-    await v.play().catch(() => {});
-    msg.hidden = true; shot.disabled = false;
-  } catch (e) { camFail(e); }
+    stream = await gum({ facingMode: CAM.facing, width: { ideal: 1280 }, height: { ideal: 1280 } });
+  } catch (e) {
+    // Some phones reject the size or facing request: try any camera before giving up
+    if (e && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')) {
+      try { stream = await gum(true); } catch (e2) { if (tok === CAM.tok) camFail(e2); return; }
+    } else { if (tok === CAM.tok) camFail(e); return; }
+  }
+  if (tok !== CAM.tok || !$('#cam-video')) { stream.getTracks().forEach((t) => t.stop()); return; }
+  CAM.stream = stream;
+  v.srcObject = stream;
+  v.classList.toggle('mirror', CAM.facing === 'user');
+  await v.play().catch(() => {});
+  msg.hidden = true; shot.disabled = false;
+}
+function camHelp() {
+  if (isIOS()) return 'เปิด <b>ตั้งค่า</b> ของ iPhone → <b>LINE</b> → เปิด <b>กล้อง</b> แล้วกลับมากด ลองอีกครั้ง';
+  if (isAndroid()) return 'เปิด <b>ตั้งค่า</b> ของมือถือ → <b>แอป</b> → <b>LINE</b> → <b>สิทธิ์</b> → <b>กล้อง</b> เลือก อนุญาต แล้วกลับมากด ลองอีกครั้ง';
+  return 'อนุญาตให้ LINE ใช้กล้องในการตั้งค่าของมือถือ แล้วกด ลองอีกครั้ง';
 }
 function camFail(e) {
   const msg = $('#cam-msg');
   if (!msg) return;
-  const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+  const name = e && e.name;
+  let head, body;
+  if (!camSupported()) {
+    head = 'มือถือเครื่องนี้เปิดกล้องในแอปไม่ได้';
+    body = 'อัปเดต LINE และระบบของมือถือเป็นเวอร์ชันล่าสุด แล้วเปิดแอปใหม่ ถ้ายังไม่ได้ ให้แจ้งหัวหน้า';
+  } else if (name === 'NotAllowedError' || name === 'SecurityError') {
+    head = 'ยังไม่ได้อนุญาตให้ LINE ใช้กล้อง';
+    body = `${camHelp()}<br>ถ้ามีหน้าต่างถามสิทธิ์ ให้กด <b>อนุญาต</b>`;
+  } else if (name === 'NotReadableError' || name === 'AbortError') {
+    head = 'กล้องถูกใช้อยู่';
+    body = 'ปิดแอปอื่นที่ใช้กล้องอยู่ (เช่น กล้อง หรือวิดีโอคอล) แล้วกด ลองอีกครั้ง';
+  } else {
+    head = 'เปิดกล้องไม่ได้';
+    body = 'กด ลองอีกครั้ง ถ้ายังไม่ได้ ให้ปิดแล้วเปิดแอปใหม่ หรือแจ้งหัวหน้า';
+  }
   msg.hidden = false;
-  msg.innerHTML = `<p><b>${denied ? 'ยังไม่ได้อนุญาตให้ใช้กล้อง' : 'เปิดกล้องในแอปไม่ได้'}</b></p>
-    <p>${denied ? 'อนุญาตให้ LINE ใช้กล้องในการตั้งค่าของมือถือ แล้วกดลองอีกครั้ง หรือใช้กล้องของมือถือแทน' : 'ลองอีกครั้ง หรือใช้กล้องของมือถือแทน'}</p>
-    <div class="cam-msg-btns"><button class="btn" type="button" data-act="cam-retry">ลองอีกครั้ง</button>
-      <button class="btn solid" type="button" data-act="cam-fallback">ใช้กล้องของมือถือ</button></div>`;
+  msg.innerHTML = `<p><b>${head}</b></p><p>${body}</p>
+    ${camSupported() ? '<div class="cam-msg-btns"><button class="btn solid" type="button" data-act="cam-retry">ลองอีกครั้ง</button></div>' : ''}`;
 }
 function camClose(result) {
+  CAM.tok++;
   camStop();
+  clearInterval(CAM.tick); CAM.tick = null;
   const el = $('#cam');
   if (el) { el.hidden = true; el.innerHTML = ''; }
   document.body.classList.remove('cam-on');
@@ -393,64 +455,11 @@ function camClose(result) {
 function camShot() {
   const v = $('#cam-video');
   if (!v || !v.videoWidth) return;
+  const at = serverNow();
   const cv = document.createElement('canvas');
   cv.width = v.videoWidth; cv.height = v.videoHeight;
   cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
-  cv.toBlob((b) => camClose(b ? { blob: b, src: 'live' } : null), 'image/jpeg', 0.92);
-}
-/* Capture time of a photo file: EXIF DateTimeOriginal/DateTime when present, else the file's own date. */
-async function exifTime(file) {
-  const buf = new DataView(await file.slice(0, 256 * 1024).arrayBuffer());
-  if (buf.byteLength < 4 || buf.getUint16(0) !== 0xFFD8) return null;
-  let p = 2;
-  while (p + 4 < buf.byteLength) {
-    const marker = buf.getUint16(p), size = buf.getUint16(p + 2);
-    if (marker === 0xFFE1 && buf.getUint32(p + 4) === 0x45786966) {
-      const t = p + 10, le = buf.getUint16(t) === 0x4949;
-      const u16 = (o) => buf.getUint16(t + o, le), u32 = (o) => buf.getUint32(t + o, le);
-      const str = (o, n) => { let s = ''; for (let i = 0; i < n - 1 && t + o + i < buf.byteLength; i++) s += String.fromCharCode(buf.getUint8(t + o + i)); return s; };
-      const read = (ifd) => {
-        const tags = {}, n = u16(ifd);
-        for (let i = 0; i < n; i++) {
-          const e = ifd + 2 + i * 12, tag = u16(e), count = u32(e + 4);
-          if (tag === 0x8769) tags.exif = u32(e + 8);
-          if ((tag === 0x9003 || tag === 0x0132) && count >= 19) tags[tag] = str(u32(e + 8), count);
-        }
-        return tags;
-      };
-      const ifd0 = read(u32(4));
-      const sub = ifd0.exif ? read(ifd0.exif) : {};
-      const s = sub[0x9003] || ifd0[0x0132];
-      const m = s && /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(s);
-      return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : null;
-    }
-    if ((marker & 0xFF00) !== 0xFF00 || marker === 0xFFDA) break;
-    p += 2 + size;
-  }
-  return null;
-}
-async function photoAgeMin(file) {
-  let t = null;
-  try { t = await exifTime(file); } catch (e) { t = null; }
-  if (!t && file.lastModified) t = file.lastModified;
-  return t ? (Date.now() - t) / 60000 : null;
-}
-/* Resolves with { blob, src } for a photo taken now, or null when cancelled. */
-async function takePunchPhoto(title) {
-  const r = camSupported() ? await openCamera(title) : { fallback: true };
-  if (!r || !r.fallback) return r;
-  return new Promise((resolve) => {
-    pickPhoto(camUser, async (f) => {
-      const age = await photoAgeMin(f);
-      if (age != null && (age > 10 || age < -10)) {
-        sheet(`<h3>ใช้รูปนี้ไม่ได้</h3><p>รูปนี้ถ่ายไว้${age > 120 ? 'หลายชั่วโมงแล้ว' : ` ${Math.round(age)} นาทีแล้ว`} ต้องถ่ายรูปใหม่ตอนนี้ ห้ามเลือกรูปเก่าในเครื่อง</p>
-          <div class="sheet-actions"><button class="btn solid" type="button" data-act="close">เข้าใจแล้ว</button></div>`);
-        resolve(null);
-        return;
-      }
-      resolve({ blob: f, src: 'file' });
-    });
-  });
+  cv.toBlob((b) => camClose(b ? { blob: b, at } : null), 'image/jpeg', 0.92);
 }
 
 /* ---------------------------------------------------------------- first-time screens */
@@ -467,7 +476,7 @@ function renderPhone(err) {
 function renderRegister() {
   const shops = S.shops.map((s) => `<button type="button" data-act="reg-shop" data-s="${esc(s.code)}" aria-pressed="${S.reg.shop === s.code}">${esc(s.code)}</button>`).join('');
   bare(`<div class="welcome">
-    <div><h1 class="view-title">ลงทะเบียนพนักงานใหม่</h1><p class="note">เบอร์ <span class="num">${esc(fmtPhone(S.regPhone))}</span> ยังไม่มีในระบบ กรอกข้อมูลแล้วรอผู้จัดการอนุมัติ</p></div>
+    <div><h1 class="view-title">ลงทะเบียนพนักงานใหม่</h1><p class="note">เบอร์ <span class="num">${esc(fmtPhone(S.regPhone))}</span> ยังไม่มีในระบบ กรอกข้อมูลแล้วรอหัวหน้าอนุมัติ</p></div>
     <form class="panel form" style="padding:18px" id="reg-form" novalidate>
       <div class="field"><label for="rg-nick">ชื่อเล่น</label><input type="text" id="rg-nick" maxlength="20" autocomplete="nickname"></div>
       <div class="field"><label for="rg-full">ชื่อ-นามสกุล</label><input type="text" id="rg-full" maxlength="60" autocomplete="name"></div>
@@ -483,7 +492,7 @@ function renderRegister() {
 }
 function renderPending() {
   bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">ส่งข้อมูลแล้ว</h1>
-    <p>รอผู้จัดการอนุมัติ เมื่ออนุมัติแล้ว เปิดแอปนี้อีกครั้งเพื่อเริ่มลงเวลา</p></div>
+    <p>รอหัวหน้าอนุมัติ เมื่ออนุมัติแล้ว เปิดแอปนี้อีกครั้งเพื่อเริ่มลงเวลา</p></div>
     <button class="btn wide" type="button" data-act="reload-me">ตรวจสอบอีกครั้ง</button></div>`);
 }
 /* A developer account is not a staff record: it only opens the monitor and acts as other people from there. */
@@ -494,11 +503,11 @@ function renderDevHome() {
 }
 function renderInactive() {
   bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">บัญชีนี้ถูกปิดใช้งาน</h1>
-    <p>ถ้าคิดว่าไม่ถูกต้อง กรุณาติดต่อผู้จัดการร้าน</p></div></div>`);
+    <p>ถ้าคิดว่าไม่ถูกต้อง กรุณาติดต่อหัวหน้า</p></div></div>`);
 }
 
 /* ---------------------------------------------------------------- staff views */
-function clockText() { const d = new Date(); return `${d.getHours()}:${pad(d.getMinutes())}`; }
+function clockText() { const t = thaiParts(serverNow()); return `${t.h}:${pad(t.m)}`; }
 function slot(kind, d) {
   const t = d[kind], photo = d[kind + '_photo'], label = kind === 'in' ? 'เข้างาน' : 'ออกงาน';
   if (!t) return `<div class="slot"><div class="shot ph">${svg('cam', 34)}</div><div><span class="k">${label}</span><span class="slot-v num">—</span></div></div>`;
@@ -542,7 +551,7 @@ VIEWS.st_today = {
     const note = (rel ? `<div class="pass-note release"><span class="tag ok">กลับก่อนได้</span> ร้าน ${esc(rel.shop)} กลับได้ตั้งแต่ ${esc(rel.from)} น.${rel.note ? ` · ${esc(rel.note)}` : ''} ไม่นับว่าออกก่อนเวลา</div>` : '')
       + (d.shop && d.shop !== p.shop_code ? `<div class="pass-note"><span class="tag">ไปช่วยร้าน ${esc(d.shop)}</span> วันนี้ลงเวลาที่ร้าน ${esc(d.shop)}</div>` : '')
       + (d.note ? `<div class="pass-note"><span class="tag">หมายเหตุกะ</span> ${esc(d.note)}</div>`
-        : !d.has_shift ? '<div class="pass-note">ผู้จัดการยังไม่ได้จัดกะวันนี้ ลงเวลาได้ตามปกติ</div>' : '');
+        : !d.has_shift ? '<div class="pass-note">วันนี้ยังไม่มีกะในตาราง ลงเวลาได้ตามปกติ</div>' : '');
     return `<article class="pass" aria-label="ลงเวลาวันนี้">
       <div class="pass-top"><div class="gate-big"><span class="gk">ร้าน</span><span class="gv">${esc(dayShop || '-')}</span></div>
         <div class="pass-who"><div class="pass-name">${esc(p.nickname)}</div><div class="k">${dLong(S.today)}</div></div>
@@ -560,7 +569,7 @@ VIEWS.st_shifts = {
   render() {
     const r = S.myShifts;
     const rows = (r.days || []).map((d) => `<li class="day-row${d.date === r.today ? ' today' : ''}"><span class="d">${d.date === r.today ? 'วันนี้' : dShort(d.date)}</span>
-      <span class="${d.off ? 't-bad' : d.has_shift ? 'num' : 't-muted'}">${!d.has_shift && d.pending ? 'ตารางรอผู้จัดการอนุมัติ' : shiftText(d)}${d.shop && d.shop !== S.me.shop_code ? ` <span class="tag">ร้าน ${esc(d.shop)}</span>` : ''}${d.has_shift && d.pending ? ' <span class="tag warn">มีแก้ไข รออนุมัติ</span>' : ''}</span>${d.note ? `<span class="x">${esc(d.note)}</span>` : ''}</li>`).join('');
+      <span class="${d.off ? 't-bad' : d.has_shift ? 'num' : 't-muted'}">${!d.has_shift && d.pending ? 'ตารางรอหัวหน้าอนุมัติ' : shiftText(d)}${d.shop && d.shop !== S.me.shop_code ? ` <span class="tag">ร้าน ${esc(d.shop)}</span>` : ''}${d.has_shift && d.pending ? ' <span class="tag warn">มีแก้ไข รออนุมัติ</span>' : ''}</span>${d.note ? `<span class="x">${esc(d.note)}</span>` : ''}</li>`).join('');
     return `<div class="stack"><div><h1 class="view-title">กะของฉัน</h1><p class="note">14 วันข้างหน้า ถ้ามีการเปลี่ยนกะตามไฟลท์ จะเห็นที่นี่ทันที</p></div><ol class="panel list">${rows}</ol></div>`;
   },
 };
@@ -696,7 +705,7 @@ function openPunchEdit(id, kind) {
   S.edit = { id, kind, date };
   sheet(`<h3>แก้${label}</h3><p class="note">${esc(p.nickname)} · ${dLong(date)}</p>
     <div class="field"><label for="pf-time">${label}</label><input type="time" id="pf-time" value="${esc(String(cur).slice(0, 5))}"></div>
-    <p class="note">ใช้ตอนพนักงานลืมลงเวลา หรือมือถือมีปัญหา ระบบจะจดว่าผู้จัดการเป็นคนแก้</p>
+    <p class="note">ใช้ตอนพนักงานลืมลงเวลา หรือมือถือมีปัญหา ระบบจะจดว่าหัวหน้าเป็นคนแก้</p>
     <p class="err" id="sheet-err" role="alert"></p>
     <div class="sheet-actions">${d[kind] ? '<button class="btn danger" type="button" data-act="punch-clear" data-confirm="แตะอีกครั้งเพื่อลบ">ลบเวลานี้</button>' : ''}<span class="spacer"></span>
       <button class="btn" type="button" data-act="close">ยกเลิก</button><button class="btn solid" type="button" data-act="punch-save">บันทึก</button></div>`);
@@ -803,7 +812,7 @@ function rosterHTML() {
       <button class="icon-btn" type="button" data-act="ros-day" data-d="${addDays(date, 1)}" aria-label="วันถัดไป">›</button>
     </div>${meta ? `<p class="note ros-meta">${meta}</p>` : ''}`;
   const head = `<div class="view-head"><div><h1 class="view-title">จัดเวร</h1>
-      <p class="note">${admin ? 'ตรวจตารางแล้วกดอนุมัติ พนักงานจะเห็นกะทันที' : 'จัดตารางของวันรุ่งขึ้น แล้วกดส่งให้ผู้จัดการตรวจ'}</p></div>
+      <p class="note">${admin ? 'ตรวจตารางแล้วกดอนุมัติ พนักงานจะเห็นกะทันที' : 'จัดตารางของวันรุ่งขึ้น แล้วกดส่งให้หัวหน้าตรวจ'}</p></div>
       <button class="btn" type="button" data-act="go-week">ดูทั้งสัปดาห์</button></div>`;
   const src = r.sources || {};
   if (!items.length && !ro) {
@@ -870,10 +879,10 @@ function rosterHTML() {
   let main = '';
   if (readOnly) main = '';
   else if (!items.length) main = '<span class="note">เพิ่มคนในตารางก่อน แล้วค่อยส่ง</span>';
-  else if (status === 'approved') main = `<span class="note">${admin ? 'อนุมัติแล้ว แก้ต่อได้ ระบบใช้ฉบับใหม่ทันที' : 'อนุมัติแล้ว ถ้าแก้ ระบบจะส่งให้ผู้จัดการอนุมัติใหม่เอง'}</span>`;
+  else if (status === 'approved') main = `<span class="note">${admin ? 'อนุมัติแล้ว แก้ต่อได้ ระบบใช้ฉบับใหม่ทันที' : 'อนุมัติแล้ว ถ้าแก้ ระบบจะส่งให้หัวหน้าอนุมัติใหม่เอง'}</span>`;
   else if (admin) main = '<button class="btn-primary good" type="button" data-act="ros-approve" data-confirm="แตะอีกครั้งเพื่ออนุมัติ">อนุมัติตารางนี้</button>';
-  else if (status === 'submitted') main = '<span class="note">ส่งแล้ว รอผู้จัดการอนุมัติ ยังแก้ได้</span>';
-  else main = '<button class="btn-primary" type="button" data-act="ros-submit">ส่งให้ผู้จัดการตรวจ</button>';
+  else if (status === 'submitted') main = '<span class="note">ส่งแล้ว รอหัวหน้าอนุมัติ ยังแก้ได้</span>';
+  else main = '<button class="btn-primary" type="button" data-act="ros-submit">ส่งให้หัวหน้าตรวจ</button>';
   const bar = items.length || main ? `<div class="ros-bar">
       ${items.length ? `<button class="ros-icon" type="button" data-act="ros-image">${svg('cam')}<span>รูป</span></button>
       <button class="ros-icon" type="button" data-act="ros-share">${svg('chat')}<span>LINE</span></button>` : ''}
@@ -1189,7 +1198,7 @@ async function openNoticeForm(pre) {
     <div class="field"><span class="lbl">ประเภท</span><div class="choice wide" id="nf-cats">${Object.entries(CAT).map(([k, l]) => `<button type="button" data-act="nf-cat" data-c="${k}" aria-pressed="${S.form.cat === k}">${l}</button>`).join('')}</div></div>
     <div class="field" id="nf-min-wrap"${S.form.cat === 'late' || S.form.cat === 'close_early' ? '' : ' hidden'}><label for="nf-min">กี่นาที (ถ้ารู้)</label><input type="number" id="nf-min" inputmode="numeric" min="0" step="1"></div>
     <div class="field"><label for="nf-detail">รายละเอียด</label><textarea id="nf-detail" maxlength="500" placeholder="เช่น ปิดร้าน 19.40 รีบไปส่งเงิน"></textarea></div>
-    <div class="field"><span class="lbl">รูปหลักฐาน (ไม่บังคับ)</span><div class="face-pick"><span class="avatar" id="nf-prev">${svg('cam', 30)}</span><button class="btn" type="button" data-act="nf-photo">แนบรูป</button></div></div>
+    <div class="field"><span class="lbl">รูปหลักฐาน (ไม่บังคับ)</span><div class="face-pick"><span class="avatar" id="nf-prev">${svg('cam', 30)}</span><button class="btn" type="button" data-act="nf-photo">ถ่ายรูป</button></div></div>
     <p class="err" id="sheet-err" role="alert"></p>
     <div class="sheet-actions"><button class="btn" type="button" data-act="close">ยกเลิก</button><button class="btn solid" type="button" data-act="nf-save">บันทึก</button></div>`);
 }
@@ -1258,7 +1267,7 @@ VIEWS.adm_people = {
     const all = S.peopleData.people || [];
     const pending = all.filter((p) => p.status === 'pending'), active = all.filter((p) => p.status === 'active'), inactive = all.filter((p) => p.status === 'inactive');
     const row = (p) => `<li><button class="item" type="button" data-act="person-edit" data-id="${esc(p.id)}">${avatar(p)}<span class="item-main">
-      <span class="item-line"><span class="item-name">${esc(p.nickname)}</span>${p.role === 'admin' ? '<span class="tag">ผู้จัดการ</span>' : ''}${p.can_schedule ? '<span class="tag">ผู้จัดเวร</span>' : ''}${p.is_test ? '<span class="tag test">ทดสอบ</span>' : ''}${p.is_demo ? '<span class="tag test">ตัวอย่าง</span>' : ''}</span>
+      <span class="item-line"><span class="item-name">${esc(p.nickname)}</span>${p.role === 'admin' ? '<span class="tag">หัวหน้า</span>' : ''}${p.can_schedule ? '<span class="tag">ผู้จัดการ</span>' : ''}${p.is_test ? '<span class="tag test">ทดสอบ</span>' : ''}${p.is_demo ? '<span class="tag test">ตัวอย่าง</span>' : ''}</span>
       <span class="item-sub num">${esc(fmtPhone(p.phone))}</span><span class="item-sub">${p.linked ? 'เปิดแอปแล้ว' : 'ยังไม่ได้เปิดแอป'}</span></span></button></li>`;
     const pend = pending.map((p) => `<li class="ev" style="grid-template-columns:auto 1fr">${avatar(p, 'lg')}<div class="item-main">
         <div class="item-line"><span class="item-name">${esc(p.nickname)}</span>${shopGate(p.shop_code)}</div>
@@ -1274,7 +1283,7 @@ VIEWS.adm_people = {
     return `<div class="stack"><div class="view-head"><h1 class="view-title">พนักงาน</h1><button class="btn solid" type="button" data-act="person-new">+ เพิ่มพนักงาน</button></div>
       ${pend ? `<section class="panel"><div class="shop-head"><b class="t-warn">รออนุมัติ (${pending.length})</b></div><ul class="list">${pend}</ul></section>` : ''}
       ${groups ? `<div class="shop-grid">${groups}</div>` : ''}
-      ${noShop.length ? `<section class="panel"><div class="shop-head"><b>ผู้จัดการ / ไม่มีร้านประจำ</b></div><ul class="list">${noShop.map(row).join('')}</ul></section>` : ''}
+      ${noShop.length ? `<section class="panel"><div class="shop-head"><b>หัวหน้า / ไม่มีร้านประจำ</b></div><ul class="list">${noShop.map(row).join('')}</ul></section>` : ''}
       ${inactive.length ? `<details class="panel"><summary class="shop-head" style="cursor:pointer"><b>ปิดใช้งานแล้ว (${inactive.length})</b></summary><ul class="list">${inactive.map(row).join('')}</ul></details>` : ''}
       <p class="note">พนักงานใหม่เปิดแอปแล้วลงทะเบียนเองได้ หรือกด "+ เพิ่มพนักงาน" ใส่ชื่อกับเบอร์ไว้ก่อน แล้วให้พนักงานเปิดแอปกรอกเบอร์เดียวกัน</p></div>`;
   },
@@ -1289,9 +1298,9 @@ function openPersonEdit(id) {
       <div class="field"><label for="pe-shop">ร้านประจำ</label><select id="pe-shop">${shopOpts}</select></div></div>
     <div class="field"><label for="pe-full">ชื่อ-นามสกุล (ไม่ใส่ก็ได้)</label><input type="text" id="pe-full" maxlength="60" value="${esc(p ? p.full_name || '' : '')}"></div>
     <div class="field"><label for="pe-phone">เบอร์โทร (ใช้เข้าแอป)</label><input type="tel" id="pe-phone" inputmode="numeric" maxlength="12" value="${esc(p ? fmtPhone(p.phone) : '')}" placeholder="08x-xxx-xxxx"></div>
-    <div class="grid2"><div class="field"><label for="pe-role">สิทธิ์</label><select id="pe-role"${isMe ? ' disabled' : ''}><option value="staff">พนักงาน</option><option value="admin"${p && p.role === 'admin' ? ' selected' : ''}>ผู้จัดการ</option></select></div>
+    <div class="grid2"><div class="field"><label for="pe-role">สิทธิ์</label><select id="pe-role"${isMe ? ' disabled' : ''}><option value="staff">พนักงาน</option><option value="admin"${p && p.role === 'admin' ? ' selected' : ''}>หัวหน้า</option></select></div>
       <div class="field"><label for="pe-status">สถานะ</label><select id="pe-status"${isMe || !p ? ' disabled' : ''}><option value="active">ทำงานอยู่</option><option value="inactive"${p && p.status === 'inactive' ? ' selected' : ''}>ปิดใช้งาน (ลาออก)</option>${p && p.status === 'pending' ? '<option value="pending" selected>รออนุมัติ</option>' : ''}</select></div></div>
-    <label class="check"><input type="checkbox" id="pe-sched"${p && p.can_schedule ? ' checked' : ''}> ให้จัดเวรได้ (ผู้จัดเวร เช่น พี่ไหม)</label>
+    <label class="check"><input type="checkbox" id="pe-sched"${p && p.can_schedule ? ' checked' : ''}> เป็นผู้จัดการ (จัดเวรได้ เช่น พี่ไหม)</label>
     ${p ? `<p class="note">${p.linked ? `ผูก LINE แล้ว${p.line_name ? ` (${esc(p.line_name)})` : ''}` : 'ยังไม่ได้เปิดแอป ให้พนักงานเปิดแอปแล้วกรอกเบอร์นี้'}</p>` : '<p class="note">เพิ่มแล้วให้พนักงานเปิดแอปใน LINE แล้วกรอกเบอร์นี้ ระบบจะผูกให้เอง ไม่ต้องรออนุมัติ</p>'}
     <p class="err" id="sheet-err" role="alert"></p>
     <div class="sheet-actions">${p && p.linked && !isMe ? '<button class="btn quiet" type="button" data-act="unlink" data-confirm="แตะอีกครั้งเพื่อยกเลิก">ยกเลิกการผูก LINE</button>' : ''}
@@ -1343,28 +1352,34 @@ const ACT = {
   'view-photo': (el) => sheet(`<img class="photo-big" src="${esc(el.dataset.src)}" alt="${esc(el.dataset.cap || 'รูป')}"><p class="note center">${esc(el.dataset.cap || '')}</p><div class="sheet-actions"><button class="btn" type="button" data-act="close">ปิด</button></div>`),
 
   'reg-shop': (el) => { S.reg.shop = el.dataset.s; document.querySelectorAll('#rg-shops button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.s === S.reg.shop))); },
-  'reg-face': (el) => pickPhoto(camUser, async (f) => {
+  'reg-face': async (el) => {
+    const shot = await openCamera('ถ่ายรูปหน้าตรง', { hint: 'หน้าตรง เห็นหน้าชัด ไม่ใส่หมวกหรือแว่นดำ' });
+    if (!shot) return;
     try {
-      S.reg.face = await makePhoto(f, []);
+      S.reg.face = await makePhoto(shot.blob, []);
       $('#rg-face-prev').innerHTML = `<img src="${S.reg.face}" alt="">`;
       el.textContent = 'ถ่ายใหม่';
-    } catch (e) { toast('เปิดรูปนี้ไม่ได้ ลองถ่ายใหม่'); }
-  }),
+    } catch (e) { toast('ถ่ายรูปไม่สำเร็จ ลองถ่ายใหม่'); }
+  },
   'reg-back': () => renderPhone(''),
 
   /* Staff replace their own profile photo: front camera, or a photo already on the phone */
-  'my-face': (el) => {
+  'my-face': async (el) => {
     const pick = el.dataset.src === 'pick';
-    pickPhoto(pick ? pickAny : camUser, async (f) => {
+    const use = async (f) => {
       sheet('<p class="loading">กำลังเตรียมรูป…</p>');
       try {
         S.faceNew = await makePhoto(f, []);
         sheet(`<h3>รูปประจำตัวใหม่</h3><div class="face-preview"><img src="${S.faceNew}" alt="รูปประจำตัวใหม่"></div>
-          <p class="note">ใช้รูปหน้าตรงที่เห็นหน้าชัด ผู้จัดการใช้รูปนี้ดูเทียบกับรูปตอนลงเวลา</p>
+          <p class="note">ใช้รูปหน้าตรงที่เห็นหน้าชัด หัวหน้าใช้รูปนี้ดูเทียบกับรูปตอนลงเวลา</p>
           <p class="err" id="sheet-err" role="alert"></p>
           <div class="sheet-actions"><button class="btn" type="button" data-act="my-face" data-src="${pick ? 'pick' : 'cam'}">${pick ? 'เลือกรูปอื่น' : 'ถ่ายใหม่'}</button><button class="btn solid" type="button" data-act="my-face-save">ใช้รูปนี้</button></div>`);
-      } catch (e) { closeSheet(); toast(pick ? 'เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น' : 'เปิดรูปนี้ไม่ได้ ลองถ่ายใหม่'); }
-    });
+      } catch (e) { closeSheet(); toast(pick ? 'เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น' : 'ถ่ายรูปไม่สำเร็จ ลองถ่ายใหม่'); }
+    };
+    if (pick) return pickPhoto(use);
+    if (!modal.hidden) closeSheet();
+    const shot = await openCamera('ถ่ายรูปประจำตัว', { hint: 'หน้าตรง เห็นหน้าชัด ไม่ใส่หมวกหรือแว่นดำ' });
+    if (shot) use(shot.blob);
   },
   'my-face-save': (el) => busy(el, async () => {
     if (!S.faceNew) return;
@@ -1378,19 +1393,18 @@ const ACT = {
   punch: async (el) => {
     const kind = el.dataset.kind, word = kind === 'in' ? 'เข้างาน' : 'ออกงาน';
     if (!modal.hidden) closeSheet();
-    const shot = await takePunchPhoto(kind === 'in' ? 'ถ่ายรูปเข้างาน' : 'ถ่ายรูปปิดร้าน / ออกงาน');
+    const shot = await openCamera(kind === 'in' ? 'ถ่ายรูปเข้างาน' : 'ถ่ายรูปปิดร้าน / ออกงาน', { hint: 'ให้เห็นหน้าคุณและหน้าร้าน' });
     if (!shot) return;
     {
-      const f = shot.blob;
       sheet('<p class="loading">กำลังเตรียมรูป…</p>');
       try {
         const dd = (S.todayData && S.todayData.day) || {};
-        const photo = await makePhoto(f, [`${word} · ${S.me.nickname} · ร้าน ${dd.shop || S.me.shop_code || '-'}`, dLong(S.today)]);
-        S.pending = { kind, photo, src: shot.src };
+        const photo = await makePhoto(shot.blob, [`${word} · ${S.me.nickname} · ร้าน ${dd.shop || S.me.shop_code || '-'}`, stampTime(shot.at)]);
+        S.pending = { kind, photo };
         sheet(`<h3>ยืนยัน${word}</h3><img class="photo-big" src="${photo}" alt="รูปที่ถ่าย"><p class="note">ระบบจะบันทึกเวลาตอนกดยืนยัน</p>
           <p class="err" id="sheet-err" role="alert"></p>
           <div class="sheet-actions"><button class="btn" type="button" data-act="punch" data-kind="${kind}">ถ่ายใหม่</button><button class="btn solid" type="button" data-act="punch-confirm">ยืนยัน${word}</button></div>`);
-      } catch (e) { closeSheet(); toast('เปิดรูปนี้ไม่ได้ ลองถ่ายใหม่'); }
+      } catch (e) { closeSheet(); toast('ถ่ายรูปไม่สำเร็จ ลองถ่ายใหม่'); }
     }
   },
   'excuse-open': (el) => {
@@ -1416,11 +1430,10 @@ const ACT = {
   'cam-shot': () => camShot(),
   'cam-flip': () => { CAM.facing = CAM.facing === 'user' ? 'environment' : 'user'; camStart(); },
   'cam-retry': () => camStart(),
-  'cam-fallback': () => camClose({ fallback: true }),
   'punch-confirm': (el) => busy(el, async () => {
     const q = S.pending; if (!q) return;
     try {
-      const r = await api('punch', { kind: q.kind, photo: q.photo, src: q.src || 'file' });
+      const r = await api('punch', { kind: q.kind, photo: q.photo, src: 'live' });
       S.todayData = r; closeSheet(); paint();
       const d = r.day || {};
       toast(q.kind === 'in' ? `บันทึกเข้างาน ${hm(d.in)} น. แล้ว${d.late ? ` (สาย ${d.late} นาที)` : ''}` : `บันทึกออกงาน ${hm(d.out)} น. แล้ว${d.early ? ` (ก่อนเวลา ${d.early} นาที)` : ''}`);
@@ -1525,7 +1538,7 @@ const ACT = {
     try { S.roster = await api('ros_item_delete', { id: S.edit.id }); closeSheet(); paint(); toast('ลบออกจากตารางแล้ว'); } catch (err) { sheetErr(err.message); }
   }),
   'ros-submit': (el) => busy(el, async () => {
-    try { S.roster = await api('ros_submit', { date: S.roster.date }); paint(); toast('ส่งให้ผู้จัดการตรวจแล้ว'); } catch (e) { toast(e.message); }
+    try { S.roster = await api('ros_submit', { date: S.roster.date }); paint(); toast('ส่งให้หัวหน้าตรวจแล้ว'); } catch (e) { toast(e.message); }
   }),
   'ros-approve': (el) => busy(el, async () => {
     try { S.roster = await api('ros_approve', { date: S.roster.date }); paint(); toast('อนุมัติแล้ว พนักงานเห็นกะแล้ว'); } catch (e) { toast(e.message); }
@@ -1576,9 +1589,15 @@ const ACT = {
     document.querySelectorAll('#nf-cats button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.c === S.form.cat)));
     $('#nf-min-wrap').hidden = !(S.form.cat === 'late' || S.form.cat === 'close_early');
   },
-  'nf-photo': () => pickPhoto(pickAny, async (f) => {
-    try { S.form.photo = await makePhoto(f, []); $('#nf-prev').innerHTML = `<img src="${S.form.photo}" alt="">`; } catch (e) { toast('เปิดรูปนี้ไม่ได้'); }
-  }),
+  'nf-photo': async (el) => {
+    const shot = await openCamera('ถ่ายรูปหลักฐาน', { hint: 'ถ่ายให้เห็นสิ่งที่เกิดขึ้น', facing: 'environment' });
+    if (!shot) return;
+    try {
+      S.form.photo = await makePhoto(shot.blob, [`หลักฐาน · บันทึกโดย ${S.me.nickname}`, stampTime(shot.at)]);
+      $('#nf-prev').innerHTML = `<img src="${S.form.photo}" alt="">`;
+      el.textContent = 'ถ่ายใหม่';
+    } catch (e) { toast('ถ่ายรูปไม่สำเร็จ ลองถ่ายใหม่'); }
+  },
   'nf-save': (el) => busy(el, async () => {
     const f = S.form, pid = $('#nf-person').value, date = $('#nf-date').value, detail = $('#nf-detail').value.trim();
     if (!pid) return sheetErr('กรุณาเลือกพนักงาน');
@@ -1665,7 +1684,7 @@ document.addEventListener('submit', async (ev) => {
     if (!S.reg.face) { err.textContent = 'กรุณาถ่ายรูปหน้าตรง'; return; }
     await busy(btn, async () => {
       try {
-        const r = await api('register', { phone: S.regPhone, nickname, full_name: full, shop_code: S.reg.shop, face_photo: S.reg.face });
+        const r = await api('register', { phone: S.regPhone, nickname, full_name: full, shop_code: S.reg.shop, face_photo: S.reg.face, face_src: 'live' });
         S.me = r.person; route();
       } catch (e) { const el = $('#rg-err'); if (el) el.textContent = e.message; }
     });

@@ -140,7 +140,7 @@ const dLabel = (k) => { const p = k.split('-').map(Number), d = new Date(p[0], p
 const ACTION_TH = {
   me: 'เปิดแอป', link_phone: 'ใส่เบอร์', register: 'ลงทะเบียน', today: 'หน้าลงเวลา', punch: 'ถ่ายรูปลงเวลา', my_shifts: 'ดูกะของฉัน', my_history: 'ดูประวัติ',
   ros_get: 'เปิดจัดเวร', ros_init: 'เริ่มตารางเวร', ros_item_save: 'แก้คนในตาราง', ros_item_delete: 'ลบคนในตาราง', ros_notes: 'บันทึกประกาศ', ros_submit: 'ส่งตารางให้ตรวจ', ros_approve: 'อนุมัติตาราง',
-  adm_board: 'หน้าวันนี้ (ผู้จัดการ)', adm_shifts: 'ภาพรวมสัปดาห์', adm_people: 'รายชื่อพนักงาน', adm_person_save: 'บันทึกพนักงาน', adm_person_unlink: 'ยกเลิกผูก LINE', adm_punch_fix: 'แก้เวลาลงงาน',
+  adm_board: 'หน้าวันนี้ (หัวหน้า)', adm_shifts: 'ภาพรวมสัปดาห์', adm_people: 'รายชื่อพนักงาน', adm_person_save: 'บันทึกพนักงาน', adm_person_unlink: 'ยกเลิกผูก LINE', adm_punch_fix: 'แก้เวลาลงงาน',
   adm_notices: 'ดูบันทึกบกพร่อง', adm_notice_add: 'เพิ่มบันทึกบกพร่อง', adm_notice_delete: 'ลบบันทึกบกพร่อง', adm_summary: 'สรุปเดือน', adm_person_detail: 'ดูรายคน',
   dev_monitor: 'หน้า Monitor', dev_test_person: 'สร้างคนทดสอบ', dev_test_reset: 'ลบข้อมูลทดสอบ', dev_claim: 'เปิดสิทธิ์ผู้ดูแล',
   adm_release: 'ให้ร้านกลับก่อน', adm_release_cancel: 'ยกเลิกกลับก่อน', ros_week: 'ดูทั้งสัปดาห์', adm_shop_hours: 'ตั้งเวลาเปิดร้าน',
@@ -209,7 +209,7 @@ function tiles(d) {
   const kinds = Object.entries(st.by_kind || {}).map(([k, v]) => `${({ face: 'หน้า', punch: 'ลงเวลา', notice: 'บกพร่อง' })[k] || k} ${n(v.files)}`).join(' · ');
   return `<section class="tiles">
     <div class="panel tile"><span class="k">พนักงานใช้งานอยู่</span><span class="v num">${n(p.active)}<small> / ${n(p.total)} คน</small></span>
-      <span class="s">${p.pending ? `<b class="t-warn">รออนุมัติ ${n(p.pending)}</b> · ` : ''}ผูก LINE ${n(p.linked)} · ผู้จัดการ ${n(p.admins)} · ผู้จัดเวร ${n(p.schedulers)}${p.test ? ` · ทดสอบ ${n(p.test)}` : ''}</span></div>
+      <span class="s">${p.pending ? `<b class="t-warn">รออนุมัติ ${n(p.pending)}</b> · ` : ''}ผูก LINE ${n(p.linked)} · หัวหน้า ${n(p.admins)} · ผู้จัดการ ${n(p.schedulers)}${p.test ? ` · ทดสอบ ${n(p.test)}` : ''}</span></div>
     <div class="panel tile"><span class="k">ลงเวลาวันนี้</span><span class="v num">${n(t.in)}<small> / ${n(t.planned)} มีกะ</small></span>
       <span class="s">ออกงานแล้ว ${n(t.out)} · หยุด ${n(t.off)} · ${t.late ? `<b class="t-warn">สาย ${n(t.late)} คน (${n(t.late_min)} นาที)</b>` : 'ไม่มีคนสาย'}</span></div>
     <div class="panel tile"><span class="k">การเรียกระบบ 24 ชม.</span><span class="v num">${n(a.total)}<small> ครั้ง</small></span>
@@ -275,7 +275,7 @@ function peopleTable(d) {
   const shops = ['A2', 'A3', 'A8', 'A14', 'A21', 'B3', 'B7', 'B19'];
   const rows = (d.people_list || []).map((p) => {
     const face = p.face_photo || p.line_picture;
-    const tags = [p.role === 'admin' ? '<span class="tag">ผู้จัดการ</span>' : '', p.can_schedule ? '<span class="tag">ผู้จัดเวร</span>' : '', p.is_dev ? '<span class="tag dev">dev</span>' : '',
+    const tags = [p.role === 'admin' ? '<span class="tag">หัวหน้า</span>' : '', p.can_schedule ? '<span class="tag">ผู้จัดการ</span>' : '', p.is_dev ? '<span class="tag dev">dev</span>' : '',
       p.is_test ? '<span class="tag test">ทดสอบ</span>' : '', p.status !== 'active' ? `<span class="tag off">${p.status === 'pending' ? 'รออนุมัติ' : 'ปิดใช้งาน'}</span>` : ''].join('');
     const self = p.is_dev;
     const open = self ? '<a class="btn" href="index.html" target="_blank" rel="noopener">เปิดแอป (ตัวเอง)</a>'
@@ -285,13 +285,13 @@ function peopleTable(d) {
       <td class="num">${esc(p.shop_code || '–')}</td><td class="num">${esc(p.phone)}</td><td>${p.linked ? `<span class="t-ok">ผูกแล้ว</span>${p.line_name ? `<div class="note">${esc(p.line_name)}</div>` : ''}` : '<span class="note">ยังไม่ผูก</span>'}</td>
       <td><div class="acts">${open}</div></td></tr>`;
   }).join('');
-  return `<section class="panel"><div class="ph"><h2>ทดสอบในฐานะคนอื่น</h2><span class="note">เปิดแอปในแท็บใหม่ ทุกการกดบันทึกเกิดขึ้นจริง ใช้กับคนทดสอบเป็นหลัก · คนทดสอบไม่แสดงให้ผู้จัดการเห็น</span></div>
+  return `<section class="panel"><div class="ph"><h2>ทดสอบในฐานะคนอื่น</h2><span class="note">เปิดแอปในแท็บใหม่ ทุกการกดบันทึกเกิดขึ้นจริง ใช้กับคนทดสอบเป็นหลัก · คนทดสอบไม่แสดงให้หัวหน้าและผู้จัดการเห็น</span></div>
     <div class="scroll"><table><thead><tr><th>ชื่อ</th><th>ร้าน</th><th>เบอร์</th><th>LINE</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <form class="form" id="tp-form" style="border-top:1px solid var(--line)">
       <div class="f"><label for="tp-name">สร้างคนทดสอบ ชื่อ</label><input type="text" id="tp-name" maxlength="20" placeholder="เช่น พนักงาน B7"></div>
-      <div class="f"><label for="tp-role">บทบาท</label><select id="tp-role"><option value="staff">พนักงาน</option><option value="admin">ผู้จัดการ</option></select></div>
+      <div class="f"><label for="tp-role">บทบาท</label><select id="tp-role"><option value="staff">พนักงาน</option><option value="admin">หัวหน้า</option></select></div>
       <div class="f"><label for="tp-shop">ร้าน</label><select id="tp-shop"><option value="">ไม่มี</option>${shops.map((s) => `<option${s === 'A2' ? ' selected' : ''}>${s}</option>`).join('')}</select></div>
-      <label class="chk"><input type="checkbox" id="tp-sched"> ผู้จัดเวร</label>
+      <label class="chk"><input type="checkbox" id="tp-sched"> ผู้จัดการ</label>
       <button class="btn solid" type="submit">สร้าง</button>
       <span class="sp" style="flex:1"></span>
       <button class="btn danger" type="button" id="tp-reset" data-confirm="แตะอีกครั้ง ลบคนทดสอบและข้อมูลทั้งหมดของเขา">ลบข้อมูลทดสอบทั้งหมด</button>
