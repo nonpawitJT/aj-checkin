@@ -47,6 +47,7 @@ const ICON = {
   person: '<circle cx="10" cy="8" r="4"/><path d="M3 21c1-4 3.8-6 7-6s6 2 7 6M19 8v6M16 11h6"/>',
   cam: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
+  refresh: '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>',
   chat: '<path d="M4 5h16v11H9l-5 4z"/>',
   clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
 };
@@ -224,7 +225,7 @@ const shopGate = (code) => (code ? `<span class="gate">${esc(code)}</span>` : ''
 function stateChip(d) {
   switch (d.state) {
     case 'done': return `<span class="chip done">ออกงาน ${hm(d.out)}</span>`;
-    case 'in': return d.late ? `<span class="chip warn">สาย ${d.late} นาที · เข้า ${hm(d.in)}</span>` : `<span class="chip ok">เข้างานแล้ว ${hm(d.in)}</span>`;
+    case 'in': return d.late ? `<span class="chip ${d.late_ok ? 'ok' : 'warn'}">สาย ${d.late} นาที${d.late_ok ? ' (อนุญาต)' : ''} · เข้า ${hm(d.in)}</span>` : `<span class="chip ok">เข้างานแล้ว ${hm(d.in)}</span>`;
     case 'noout': return '<span class="chip bad">ไม่ได้ลงเวลาออก</span>';
     case 'off': return '<span class="chip">วันหยุด</span>';
     case 'no_shift': return '<span class="chip">ไม่มีกะ</span>';
@@ -234,14 +235,27 @@ function stateChip(d) {
     default: return '';
   }
 }
+const NOT_LIVE = /ไม่ได้ถ่ายผ่านกล้อง/;
+const okNote = (n) => (n ? ` (${esc(n)})` : '');
 function dayNotes(d) {
   const out = [];
-  if (d.late) out.push(`<span class="t-warn">สาย ${d.late} นาที</span>`);
-  if (d.early) out.push(`<span class="t-warn">ออกก่อน ${d.early} นาที</span>`);
+  if (d.late) out.push(d.late_ok ? `<span class="t-ok">สาย ${d.late} นาที · อนุญาตแล้ว${okNote(d.late_ok_note)}</span>` : `<span class="t-warn">สาย ${d.late} นาที</span>`);
+  if (d.early) out.push(d.early_ok ? `<span class="t-ok">ออกก่อน ${d.early} นาที · อนุญาตแล้ว${okNote(d.early_ok_note)}</span>` : `<span class="t-warn">ออกก่อน ${d.early} นาที</span>`);
   if (d.state === 'noout') out.push('<span class="t-bad">ไม่ได้ลงเวลาออก</span>');
   if (d.state === 'absent') out.push('<span class="t-bad">ไม่ได้เข้างาน</span>');
-  if (d.in_note || d.out_note) out.push('<span class="t-muted">ผู้จัดการแก้เวลา</span>');
+  [['in_note', 'เข้างาน'], ['out_note', 'ออกงาน']].forEach(([k, w]) => {
+    const n = d[k];
+    if (n) out.push(NOT_LIVE.test(n) ? `<span class="t-bad">รูป${w}ไม่ได้ถ่ายผ่านกล้องในแอป</span>` : `<span class="t-muted">${w}: ${esc(n)}</span>`);
+  });
   return out.join(' · ');
+}
+const photoFlag = (d) => (NOT_LIVE.test(d.in_note || '') || NOT_LIVE.test(d.out_note || '') ? '<span class="tag warn">รูปไม่ได้ถ่ายในแอป</span>' : '');
+function excuseBtn(p, date, d, k) {
+  const mins = k === 'late' ? d.late : d.early, ok = k === 'late' ? d.late_ok : d.early_ok, word = k === 'late' ? 'สาย' : 'ออกก่อน';
+  if (!mins) return '';
+  return ok
+    ? `<button class="btn" type="button" data-act="excuse-cancel" data-nid="${esc(k === 'late' ? d.late_ok_id : d.early_ok_id)}" data-confirm="แตะอีกครั้งเพื่อยกเลิก">ยกเลิกการอนุญาต${word}</button>`
+    : `<button class="btn ok" type="button" data-act="excuse-open" data-pid="${esc(p.person_id || p.id)}" data-date="${esc(date)}" data-kind="${k}" data-name="${esc(p.nickname)}" data-min="${mins}">อนุญาต${word} ไม่นับ</button>`;
 }
 function monthsBack(n) {
   const cur = (S.today || keyOf(new Date())).slice(0, 7), out = [];
@@ -260,16 +274,20 @@ function periodRange(v) {
 }
 const periodSelect = (id, val) => `<select id="${id}">${periodOptions().map(([v, l]) => `<option value="${v}"${v === val ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
 function eventItem(e, opts = {}) {
-  const tag = e.kind === 'auto' ? '<span class="tag">ระบบจับเอง</span>'
+  const auto = e.kind === 'auto';
+  const tag = auto ? (e.excused ? `<span class="tag ok">อนุญาตแล้ว${e.by ? ` · ${esc(e.by)}` : ''}</span>` : '<span class="tag">ระบบจับเอง</span>')
     : e.decision === 'excused' ? '<span class="tag">แจ้งแล้ว / ลา</span>' : `<span class="tag">บันทึกโดย ${esc(e.by || '-')}</span>`;
   const label = e.category === 'absent' && e.decision === 'excused' ? 'ขาดงาน (แจ้งล่วงหน้าแล้ว)' : CAT[e.category] || e.category;
   const mins = e.minutes ? ` ${e.minutes} นาที` : '';
   const thumb = e.photo ? `<button class="ev-thumb" type="button" data-act="view-photo" data-src="${esc(e.photo)}" data-cap="${esc(label)}"><img src="${esc(e.photo)}" alt="รูปหลักฐาน" loading="lazy"></button>` : '';
-  const del = e.kind === 'manual' ? `<button class="btn quiet" type="button" data-act="notice-del" data-id="${esc(e.id)}" data-confirm="แตะอีกครั้งเพื่อลบ">ลบ</button>` : '';
+  const k = e.category === 'late' ? 'late' : 'early';
+  const del = !auto ? `<button class="btn quiet" type="button" data-act="notice-del" data-id="${esc(e.id)}" data-confirm="แตะอีกครั้งเพื่อลบ">ลบ</button>`
+    : excuseBtn(e, e.date, { [k]: e.minutes, [`${k}_ok`]: e.excused, [`${k}_ok_id`]: e.excuse_id }, k);
+  const reason = auto && e.excused && e.reason ? `<div class="item-sub">เหตุผล: ${esc(e.reason)}</div>` : '';
   return `<li class="ev"><div class="item-main">
       <div class="item-line"><b>${dShort(e.date)}</b>${opts.hideName ? '' : `<span class="item-name">${esc(e.nickname)}</span>${shopGate(e.shop_code)}`}</div>
-      <div class="item-line"><span class="cat ${e.decision === 'excused' ? '' : esc(e.category)}">${esc(label)}${mins}</span>${tag}</div>
-      ${e.detail ? `<div class="item-sub">${esc(e.detail)}</div>` : ''}${del ? `<div>${del}</div>` : ''}
+      <div class="item-line"><span class="cat ${e.decision === 'excused' || e.excused ? '' : esc(e.category)}">${esc(label)}${mins}</span>${tag}</div>
+      ${e.detail ? `<div class="item-sub">${esc(e.detail)}</div>` : ''}${reason}${del ? `<div>${del}</div>` : ''}
     </div>${thumb}</li>`;
 }
 
@@ -311,6 +329,127 @@ function makePhoto(file, lines) {
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')); };
     img.src = url;
+  });
+}
+
+/* ---------------------------------------------------------------- in-app camera (punch photos)
+   A file input lets some Android phones pick an old photo from the gallery even with capture="user",
+   so punch photos are taken from a live camera preview inside the app. If the camera cannot be opened
+   here, the phone's own camera is used instead: old photos are refused and the punch is flagged for managers. */
+const CAM = { stream: null, facing: 'user', resolve: null };
+const camSupported = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+function camStop() {
+  if (CAM.stream) { CAM.stream.getTracks().forEach((t) => t.stop()); CAM.stream = null; }
+}
+function openCamera(title) {
+  return new Promise((resolve) => {
+    CAM.resolve = resolve;
+    let el = $('#cam');
+    if (!el) { el = document.createElement('div'); el.id = 'cam'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); document.body.appendChild(el); }
+    el.innerHTML = `<div class="cam-top"><b>${esc(title)}</b><span>ให้เห็นหน้าคุณและหน้าร้าน</span></div>
+      <div class="cam-view"><video id="cam-video" autoplay playsinline muted></video><div id="cam-msg" class="cam-msg"><p>กำลังเปิดกล้อง…</p></div></div>
+      <div class="cam-bar"><button class="cam-btn" type="button" data-act="cam-cancel">ยกเลิก</button>
+        <button class="cam-shutter" id="cam-shot" type="button" data-act="cam-shot" aria-label="ถ่ายรูป" disabled><i></i></button>
+        <button class="cam-btn" type="button" data-act="cam-flip">${svg('refresh', 22)}สลับกล้อง</button></div>`;
+    el.hidden = false;
+    document.body.classList.add('cam-on');
+    camStart();
+  });
+}
+async function camStart() {
+  camStop();
+  const v = $('#cam-video'), msg = $('#cam-msg'), shot = $('#cam-shot');
+  if (!v) return;
+  shot.disabled = true;
+  msg.innerHTML = '<p>กำลังเปิดกล้อง…</p>'; msg.hidden = false;
+  if (!camSupported()) return camFail(null);
+  try {
+    CAM.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: CAM.facing, width: { ideal: 1280 }, height: { ideal: 1280 } } });
+    if (!$('#cam-video')) { camStop(); return; }
+    v.srcObject = CAM.stream;
+    v.classList.toggle('mirror', CAM.facing === 'user');
+    await v.play().catch(() => {});
+    msg.hidden = true; shot.disabled = false;
+  } catch (e) { camFail(e); }
+}
+function camFail(e) {
+  const msg = $('#cam-msg');
+  if (!msg) return;
+  const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+  msg.hidden = false;
+  msg.innerHTML = `<p><b>${denied ? 'ยังไม่ได้อนุญาตให้ใช้กล้อง' : 'เปิดกล้องในแอปไม่ได้'}</b></p>
+    <p>${denied ? 'อนุญาตให้ LINE ใช้กล้องในการตั้งค่าของมือถือ แล้วกดลองอีกครั้ง หรือใช้กล้องของมือถือแทน' : 'ลองอีกครั้ง หรือใช้กล้องของมือถือแทน'}</p>
+    <div class="cam-msg-btns"><button class="btn" type="button" data-act="cam-retry">ลองอีกครั้ง</button>
+      <button class="btn solid" type="button" data-act="cam-fallback">ใช้กล้องของมือถือ</button></div>`;
+}
+function camClose(result) {
+  camStop();
+  const el = $('#cam');
+  if (el) { el.hidden = true; el.innerHTML = ''; }
+  document.body.classList.remove('cam-on');
+  const r = CAM.resolve; CAM.resolve = null;
+  if (r) r(result);
+}
+function camShot() {
+  const v = $('#cam-video');
+  if (!v || !v.videoWidth) return;
+  const cv = document.createElement('canvas');
+  cv.width = v.videoWidth; cv.height = v.videoHeight;
+  cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
+  cv.toBlob((b) => camClose(b ? { blob: b, src: 'live' } : null), 'image/jpeg', 0.92);
+}
+/* Capture time of a photo file: EXIF DateTimeOriginal/DateTime when present, else the file's own date. */
+async function exifTime(file) {
+  const buf = new DataView(await file.slice(0, 256 * 1024).arrayBuffer());
+  if (buf.byteLength < 4 || buf.getUint16(0) !== 0xFFD8) return null;
+  let p = 2;
+  while (p + 4 < buf.byteLength) {
+    const marker = buf.getUint16(p), size = buf.getUint16(p + 2);
+    if (marker === 0xFFE1 && buf.getUint32(p + 4) === 0x45786966) {
+      const t = p + 10, le = buf.getUint16(t) === 0x4949;
+      const u16 = (o) => buf.getUint16(t + o, le), u32 = (o) => buf.getUint32(t + o, le);
+      const str = (o, n) => { let s = ''; for (let i = 0; i < n - 1 && t + o + i < buf.byteLength; i++) s += String.fromCharCode(buf.getUint8(t + o + i)); return s; };
+      const read = (ifd) => {
+        const tags = {}, n = u16(ifd);
+        for (let i = 0; i < n; i++) {
+          const e = ifd + 2 + i * 12, tag = u16(e), count = u32(e + 4);
+          if (tag === 0x8769) tags.exif = u32(e + 8);
+          if ((tag === 0x9003 || tag === 0x0132) && count >= 19) tags[tag] = str(u32(e + 8), count);
+        }
+        return tags;
+      };
+      const ifd0 = read(u32(4));
+      const sub = ifd0.exif ? read(ifd0.exif) : {};
+      const s = sub[0x9003] || ifd0[0x0132];
+      const m = s && /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(s);
+      return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : null;
+    }
+    if ((marker & 0xFF00) !== 0xFF00 || marker === 0xFFDA) break;
+    p += 2 + size;
+  }
+  return null;
+}
+async function photoAgeMin(file) {
+  let t = null;
+  try { t = await exifTime(file); } catch (e) { t = null; }
+  if (!t && file.lastModified) t = file.lastModified;
+  return t ? (Date.now() - t) / 60000 : null;
+}
+/* Resolves with { blob, src } for a photo taken now, or null when cancelled. */
+async function takePunchPhoto(title) {
+  const r = camSupported() ? await openCamera(title) : { fallback: true };
+  if (!r || !r.fallback) return r;
+  return new Promise((resolve) => {
+    pickPhoto(camUser, async (f) => {
+      const age = await photoAgeMin(f);
+      if (age != null && (age > 10 || age < -10)) {
+        sheet(`<h3>ใช้รูปนี้ไม่ได้</h3><p>รูปนี้ถ่ายไว้${age > 120 ? 'หลายชั่วโมงแล้ว' : ` ${Math.round(age)} นาทีแล้ว`} ต้องถ่ายรูปใหม่ตอนนี้ ห้ามเลือกรูปเก่าในเครื่อง</p>
+          <div class="sheet-actions"><button class="btn solid" type="button" data-act="close">เข้าใจแล้ว</button></div>`);
+        resolve(null);
+        return;
+      }
+      resolve({ blob: f, src: 'file' });
+    });
   });
 }
 
@@ -368,8 +507,8 @@ function slot(kind, d) {
     : '<div class="shot ph">ไม่มีรูป</div>';
   const timed = d.has_shift && !d.off;
   const sub = kind === 'in'
-    ? (d.late ? `<span class="t-warn">สาย ${d.late} นาที</span>` : timed ? '<span class="t-ok">ตรงเวลา</span>' : '')
-    : (d.early ? `<span class="t-warn">ออกก่อน ${d.early} นาที</span>` : timed ? 'ครบกะ' : '');
+    ? (d.late ? (d.late_ok ? `<span class="t-ok">สาย ${d.late} นาที (อนุญาต)</span>` : `<span class="t-warn">สาย ${d.late} นาที</span>`) : timed ? '<span class="t-ok">ตรงเวลา</span>' : '')
+    : (d.early ? (d.early_ok ? `<span class="t-ok">ออกก่อน ${d.early} นาที (อนุญาต)</span>` : `<span class="t-warn">ออกก่อน ${d.early} นาที</span>`) : timed ? 'ครบกะ' : '');
   return `<div class="slot">${img}<div><span class="k">${label}</span><span class="slot-v num">${hm(t)}</span>${sub ? `<br><span>${sub}</span>` : ''}</div></div>`;
 }
 function todayHint(d) {
@@ -445,7 +584,7 @@ VIEWS.st_history = {
     return `<div class="stack">${meCard}<div class="view-head"><h1 class="view-title">ประวัติของฉัน</h1>
       <div class="field" style="min-width:12rem"><label class="vh" for="hist-month">เดือน</label><select id="hist-month">${opts}</select></div></div>
       <div class="tiles"><div class="panel tile"><span class="k">มาทำงาน</span><span class="v">${t.worked || 0}</span>วัน</div>
-        <div class="panel tile ${t.late_n ? 'warn' : ''}"><span class="k">มาสาย</span><span class="v">${t.late_n || 0}</span>ครั้ง · ${t.late_m || 0} นาที</div>
+        <div class="panel tile ${t.late_n ? 'warn' : ''}"><span class="k">มาสาย</span><span class="v">${t.late_n || 0}</span>ครั้ง · ${t.late_m || 0} นาที${t.late_ok_n ? ` · อนุญาต ${t.late_ok_n} ครั้ง` : ''}</div>
         <div class="panel tile ${t.early_n ? 'warn' : ''}"><span class="k">ออกก่อนเวลา</span><span class="v">${t.early_n || 0}</span>ครั้ง</div></div>
       ${rows ? `<ol class="panel list">${rows}</ol>` : '<p class="panel empty">ยังไม่มีข้อมูลในเดือนนี้</p>'}</div>`;
   },
@@ -498,7 +637,7 @@ VIEWS.adm_board = {
         const times = [d.in ? `เข้า ${hm(d.in)}` : '', d.out ? `ออก ${hm(d.out)}` : ''].filter(Boolean).join(' · ');
         return `<li><button class="item" type="button" data-act="board-person" data-id="${esc(p.id)}">${avatar(p)}<span class="item-main">
           <span class="item-line"><span class="item-name">${esc(p.nickname)}</span><span class="num">${shiftText(d)}</span>${p.home_shop && p.home_shop !== p.shop_code ? `<span class="tag">มาจาก ${esc(p.home_shop)}</span>` : ''}</span>
-          <span class="item-line">${stateChip(d)}${times && d.state !== 'done' ? `<span class="item-sub num">${times}</span>` : d.state === 'done' ? `<span class="item-sub num">เข้า ${hm(d.in)}</span>` : ''}</span>
+          <span class="item-line">${stateChip(d)}${photoFlag(d)}${times && d.state !== 'done' ? `<span class="item-sub num">${times}</span>` : d.state === 'done' ? `<span class="item-sub num">เข้า ${hm(d.in)}</span>` : ''}</span>
           ${d.note ? `<span class="item-sub">${esc(d.note)}</span>` : ''}</span></button></li>`;
       }).join('');
       const rl = relOf(s.code);
@@ -542,6 +681,7 @@ function openBoardPerson(id) {
   sheet(`<h3>${esc(p.nickname)} · ร้าน ${esc(p.shop_code)}</h3><p class="note">${dLong(date)} · กะ ${shiftText(d)}</p>
     <div class="photos2">${fig('in', 'เข้างาน')}${fig('out', 'ออกงาน')}</div>
     ${dayNotes(d) ? `<p>${dayNotes(d)}</p>` : ''}
+    ${d.late || d.early ? `<div class="row-btns">${excuseBtn(p, date, d, 'late')}${excuseBtn(p, date, d, 'early')}</div>` : ''}
     <div class="row-btns"><button class="btn" type="button" data-act="punch-edit" data-id="${esc(p.id)}" data-kind="in">แก้เวลาเข้า</button>
       <button class="btn" type="button" data-act="punch-edit" data-id="${esc(p.id)}" data-kind="out">แก้เวลาออก</button></div>
     <div class="row-btns"><button class="btn" type="button" data-act="ros-open" data-d="${date}">ตารางเวรวันนี้</button>
@@ -1090,7 +1230,7 @@ VIEWS.adm_person = {
         ${p.status === 'inactive' ? '<span class="chip">ปิดใช้งาน</span>' : ''}</div></div>
       <div class="field"><label for="person-period">ช่วงเวลา</label>${periodSelect('person-period', S.personPeriod)}</div>
       <div class="tiles">${tile('มาทำงาน', s.worked, 'วัน', '')}${tile('มาสาย', s.late_n, `ครั้ง · ${s.late_m || 0} นาที`, 'warn')}${tile('ปิดก่อนเวลา', s.early_n, `ครั้ง · ${s.early_m || 0} นาที`, 'warn')}
-        ${tile('ขาดไม่แจ้ง', s.absent_n, 'วัน', 'bad')}${tile('แจ้งลา', s.excused_n, 'วัน', '')}${tile('อื่นๆ', s.other_n, 'ครั้ง', 'bad')}</div>
+        ${tile('ขาดไม่แจ้ง', s.absent_n, 'วัน', 'bad')}${tile('แจ้งลา', s.excused_n, 'วัน', '')}${tile('อื่นๆ', s.other_n, 'ครั้ง', 'bad')}${tile('อนุญาต สาย/ออกก่อน', (s.late_ok_n || 0) + (s.early_ok_n || 0), 'ครั้ง ไม่นับ', '')}</div>
       <button class="btn solid wide" type="button" data-act="notice-new" data-pid="${esc(p.id)}">+ บันทึกความผิดของ ${esc(p.nickname)}</button>
       <h2 class="section-title">รายการทั้งหมด</h2>
       ${(r.events || []).length ? `<ul class="panel list">${r.events.map((e) => eventItem(e, { hideName: true })).join('')}</ul>` : '<p class="panel empty">ไม่มีรายการในช่วงนี้</p>'}
@@ -1178,7 +1318,7 @@ function closeSheet() {
 }
 function sheetErr(msg) { const el = $('#sheet-err'); if (el) el.textContent = msg; else toast(msg); }
 modal.addEventListener('click', (e) => { if (e.target === modal) closeSheet(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) closeSheet(); });
+document.addEventListener('keydown', (e) => { if (e.key !== 'Escape') return; if (CAM.resolve) camClose(null); else if (!modal.hidden) closeSheet(); });
 let toastTimer = null;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3400); }
 async function busy(btn, fn) {
@@ -1235,24 +1375,52 @@ const ACT = {
     } catch (e) { sheetErr(e.message); }
   }),
 
-  punch: (el) => {
+  punch: async (el) => {
     const kind = el.dataset.kind, word = kind === 'in' ? 'เข้างาน' : 'ออกงาน';
-    pickPhoto(camUser, async (f) => {
+    if (!modal.hidden) closeSheet();
+    const shot = await takePunchPhoto(kind === 'in' ? 'ถ่ายรูปเข้างาน' : 'ถ่ายรูปปิดร้าน / ออกงาน');
+    if (!shot) return;
+    {
+      const f = shot.blob;
       sheet('<p class="loading">กำลังเตรียมรูป…</p>');
       try {
         const dd = (S.todayData && S.todayData.day) || {};
         const photo = await makePhoto(f, [`${word} · ${S.me.nickname} · ร้าน ${dd.shop || S.me.shop_code || '-'}`, dLong(S.today)]);
-        S.pending = { kind, photo };
+        S.pending = { kind, photo, src: shot.src };
         sheet(`<h3>ยืนยัน${word}</h3><img class="photo-big" src="${photo}" alt="รูปที่ถ่าย"><p class="note">ระบบจะบันทึกเวลาตอนกดยืนยัน</p>
           <p class="err" id="sheet-err" role="alert"></p>
           <div class="sheet-actions"><button class="btn" type="button" data-act="punch" data-kind="${kind}">ถ่ายใหม่</button><button class="btn solid" type="button" data-act="punch-confirm">ยืนยัน${word}</button></div>`);
       } catch (e) { closeSheet(); toast('เปิดรูปนี้ไม่ได้ ลองถ่ายใหม่'); }
-    });
+    }
   },
+  'excuse-open': (el) => {
+    const k = el.dataset.kind, word = k === 'late' ? 'มาสาย' : 'ออกก่อนเวลา';
+    S.edit = { pid: el.dataset.pid, date: el.dataset.date, kind: k };
+    sheet(`<h3>อนุญาตให้${word}</h3><p class="note">${esc(el.dataset.name)} · ${dLong(el.dataset.date)} · ${k === 'late' ? 'สาย' : 'ออกก่อน'} ${esc(el.dataset.min)} นาที</p>
+      <div class="field"><label for="ex-reason">เหตุผล</label><textarea id="ex-reason" rows="2" maxlength="200" placeholder="${k === 'late' ? 'เช่น ยางรถแตก โทรแจ้งแล้ว' : 'เช่น ไม่สบาย ขอกลับก่อน'}"></textarea></div>
+      <p class="note">เวลาจริงยังเก็บไว้ครบ แต่จะไม่นับเป็นความผิดในสรุป ยกเลิกทีหลังได้</p>
+      <p class="err" id="sheet-err" role="alert"></p>
+      <div class="sheet-actions"><button class="btn" type="button" data-act="close">ยกเลิก</button><button class="btn solid" type="button" data-act="excuse-save">อนุญาต ไม่นับ</button></div>`);
+  },
+  'excuse-save': (el) => busy(el, async () => {
+    const e = S.edit;
+    try {
+      await api('adm_excuse', { person_id: e.pid, date: e.date, kind: e.kind, reason: $('#ex-reason').value.trim() });
+      closeSheet(); toast('บันทึกแล้ว ไม่นับเป็นความผิด'); load();
+    } catch (err) { sheetErr(err.message); }
+  }),
+  'excuse-cancel': (el) => busy(el, async () => {
+    try { await api('adm_notice_delete', { id: el.dataset.nid }); if (!modal.hidden) closeSheet(); toast('ยกเลิกแล้ว กลับมานับตามปกติ'); load(); } catch (err) { toast(err.message); }
+  }),
+  'cam-cancel': () => camClose(null),
+  'cam-shot': () => camShot(),
+  'cam-flip': () => { CAM.facing = CAM.facing === 'user' ? 'environment' : 'user'; camStart(); },
+  'cam-retry': () => camStart(),
+  'cam-fallback': () => camClose({ fallback: true }),
   'punch-confirm': (el) => busy(el, async () => {
     const q = S.pending; if (!q) return;
     try {
-      const r = await api('punch', { kind: q.kind, photo: q.photo });
+      const r = await api('punch', { kind: q.kind, photo: q.photo, src: q.src || 'file' });
       S.todayData = r; closeSheet(); paint();
       const d = r.day || {};
       toast(q.kind === 'in' ? `บันทึกเข้างาน ${hm(d.in)} น. แล้ว${d.late ? ` (สาย ${d.late} นาที)` : ''}` : `บันทึกออกงาน ${hm(d.out)} น. แล้ว${d.early ? ` (ก่อนเวลา ${d.early} นาที)` : ''}`);

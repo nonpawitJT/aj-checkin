@@ -241,6 +241,32 @@ table.t tbody tr[data-act]{cursor:pointer}
 .shopgrid button[aria-pressed="true"]{background:var(--sign);border-color:var(--sign-ink);color:var(--sign-ink)}
 .face-pick{display:flex;gap:12px;align-items:center}
 .face-pick .avatar{width:88px;height:88px}
+/* in-app camera for punch photos */
+#cam{position:fixed;inset:0;z-index:55;background:#05101C;color:#fff;display:grid;grid-template-rows:auto 1fr auto;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+#cam[hidden]{display:none}
+body.cam-on{overflow:hidden}
+.cam-top{display:grid;gap:2px;padding:14px 18px 10px;text-align:center}
+.cam-top b{font-size:1.25rem}
+.cam-top span{color:#C9D8E6;font-size:.98rem}
+.cam-view{position:relative;min-height:0;overflow:hidden;display:grid;place-items:center;background:#000}
+.cam-view video{width:100%;height:100%;object-fit:cover;display:block}
+.cam-view video.mirror{transform:scaleX(-1)}
+.cam-msg{position:absolute;inset:0;display:grid;place-content:center;gap:10px;padding:24px;text-align:center;background:rgba(5,16,28,.92);font-size:1.05rem;line-height:1.5}
+.cam-msg[hidden]{display:none}
+.cam-msg p{margin:0;max-width:22rem}
+.cam-msg-btns{display:grid;gap:10px;margin-top:6px}
+.cam-msg-btns .btn{width:100%}
+.cam-msg-btns .btn:not(.solid){background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.45)}
+.cam-bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:16px 18px 20px}
+.cam-btn{min-height:52px;border:0;border-radius:14px;background:rgba(255,255,255,.12);color:#fff;font:inherit;font-size:1rem;font-weight:600;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 12px}
+.cam-btn:first-child{justify-self:start}.cam-btn:last-child{justify-self:end}
+.cam-shutter{width:84px;height:84px;border-radius:50%;border:5px solid #fff;background:transparent;padding:6px;display:grid;place-items:center}
+.cam-shutter i{display:block;width:100%;height:100%;border-radius:50%;background:#FD9627}
+.cam-shutter:disabled{opacity:.4}
+.cam-shutter:not(:disabled):active i{transform:scale(.9)}
+.cam-btn:focus-visible,.cam-shutter:focus-visible{outline:3px solid #FFD43B;outline-offset:3px}
 /* staff: own profile card on the history page */
 .me-card{display:grid;gap:14px;padding:16px}
 .me-row{display:flex;gap:14px;align-items:center}
@@ -260,6 +286,7 @@ table.t tbody tr[data-act]{cursor:pointer}
 .tag.test{color:var(--sign-ink);background:var(--sign)}
 .tag.warn{color:var(--warn);background:var(--warn-bg)}
 .tag.ok{color:var(--ok);background:var(--ok-bg)}
+.btn.ok{border-color:var(--ok);color:var(--ok);background:var(--ok-bg)}
 .release-bar{display:grid;gap:8px;width:100%;max-width:640px;margin-inline:auto}
 .release-btn{appearance:none;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:62px;padding:12px 18px;border-radius:16px;border:2px solid #E0AE00;background:#FFD43B;color:#2B2100;font-size:1.18rem;font-weight:700;cursor:pointer;box-shadow:0 3px 0 #E0AE00}
 .release-btn:hover{background:#FFCB1A}
