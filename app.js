@@ -224,12 +224,23 @@ function avatar(p, cls) {
   return src ? `<span class="avatar ${cls || ''}"><img src="${esc(src)}" alt="" loading="lazy"></span>` : `<span class="avatar ${cls || ''}">${ini}</span>`;
 }
 const shopGate = (code) => (code ? `<span class="gate">${esc(code)}</span>` : '');
+const fmtN = (n) => Number(n || 0).toLocaleString('en-US');
+const baht = (n) => `${fmtN(n)} บาท`;
+/* Late minutes of a month: green when none, then deeper orange to deep red the more minutes */
+const lateCls = (m) => (!m ? 'lt0' : m <= 15 ? 'lt1' : m <= 30 ? 'lt2' : m <= 60 ? 'lt3' : 'lt4');
+const latePill = (m, ok) => `<span class="late-pill ${ok ? 'lt0' : lateCls(m)}">${fmtN(m)} นาที</span>`;
+const hDur = (m) => `${Math.floor((m || 0) / 60)}:${pad((m || 0) % 60)}`;
+const dDM = (k) => { const d = parseD(k); return `${d.getDate()}/${d.getMonth() + 1}`; };
+const dRange = (a, b) => (a === b ? dShort(a) : `${dShort(a)} – ${dShort(b)}`);
+const LEAVE_ST = { pending: ['รออนุมัติ', 'warn'], approved: ['อนุมัติแล้ว', 'ok'], rejected: ['ไม่อนุมัติ', 'bad'], cancelled: ['ยกเลิกแล้ว', ''] };
+const plain = (html) => String(html || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 function stateChip(d) {
   switch (d.state) {
     case 'done': return `<span class="chip done">ออกงาน ${hm(d.out)}</span>`;
     case 'in': return d.late ? `<span class="chip ${d.late_ok ? 'ok' : 'warn'}">สาย ${d.late} นาที${d.late_ok ? ' (อนุญาต)' : ''} · เข้า ${hm(d.in)}</span>` : `<span class="chip ok">เข้างานแล้ว ${hm(d.in)}</span>`;
     case 'noout': return '<span class="chip bad">ไม่ได้ลงเวลาออก</span>';
     case 'off': return '<span class="chip">วันหยุด</span>';
+    case 'leave': return '<span class="chip ok">ลา (อนุมัติแล้ว)</span>';
     case 'no_shift': return '<span class="chip">ไม่มีกะ</span>';
     case 'absent': return '<span class="chip bad">ไม่ได้เข้างาน</span>';
     case 'missing': return '<span class="chip bad">ยังไม่เข้างาน</span>';
@@ -245,8 +256,13 @@ function dayNotes(d) {
   if (d.early) out.push(d.early_ok ? `<span class="t-ok">ออกก่อน ${d.early} นาที · อนุญาตแล้ว${okNote(d.early_ok_note)}</span>` : `<span class="t-warn">ออกก่อน ${d.early} นาที</span>`);
   if (d.state === 'noout') out.push('<span class="t-bad">ไม่ได้ลงเวลาออก</span>');
   if (d.state === 'absent') out.push('<span class="t-bad">ไม่ได้เข้างาน</span>');
+  if (d.leave) out.push('<span class="t-ok">ลา (อนุมัติแล้ว)</span>');
+  if (d.ot) out.push(`<span class="t-ok">OT ${d.ot} ครั้ง · ${baht(d.ot_baht)}</span>`);
+  if (d.round2) out.push(`<span class="t-ok">มา 2 รอบ +${baht(d.round2_baht)}</span>`);
+  if (d.forgot) out.push(`<span class="t-muted">ลืมเช็คเอาท์${/แอดมิน/.test(d.out_note || '') ? ' · แอดมินกด' : ''} (ไม่คิด OT)</span>`);
+  if (d.ot_waived) out.push('<span class="t-muted">หัวหน้าไม่นับ OT วันนี้</span>');
   [['in_note', 'เข้างาน'], ['out_note', 'ออกงาน']].forEach(([k, w]) => {
-    const n = d[k];
+    const n = k === 'out_note' && d.forgot ? '' : d[k];
     if (n) out.push(NOT_LIVE.test(n) ? `<span class="t-bad">รูป${w}ไม่ได้ถ่ายผ่านกล้องในแอป</span>` : `<span class="t-muted">${w}: ${esc(n)}</span>`);
   });
   return out.join(' · ');
@@ -517,7 +533,9 @@ function slot(kind, d) {
   const timed = d.has_shift && !d.off;
   const sub = kind === 'in'
     ? (d.late ? (d.late_ok ? `<span class="t-ok">สาย ${d.late} นาที (อนุญาต)</span>` : `<span class="t-warn">สาย ${d.late} นาที</span>`) : timed ? '<span class="t-ok">ตรงเวลา</span>' : '')
-    : (d.early ? (d.early_ok ? `<span class="t-ok">ออกก่อน ${d.early} นาที (อนุญาต)</span>` : `<span class="t-warn">ออกก่อน ${d.early} นาที</span>`) : timed ? 'ครบกะ' : '');
+    : [d.forgot ? '<span class="t-muted">ลืมเช็คเอาท์</span>' : d.early ? (d.early_ok ? `<span class="t-ok">ออกก่อน ${d.early} นาที (อนุญาต)</span>` : `<span class="t-warn">ออกก่อน ${d.early} นาที</span>`) : timed ? 'ครบกะ' : '',
+       d.ot ? `<span class="t-ok">OT ${d.ot} ครั้ง · ${baht(d.ot_baht)}</span>` : '',
+       d.round2 ? `<span class="t-ok">มา 2 รอบ +${baht(d.round2_baht)}</span>` : ''].filter(Boolean).join('<br>');
   return `<div class="slot">${img}<div><span class="k">${label}</span><span class="slot-v num">${hm(t)}</span>${sub ? `<br><span>${sub}</span>` : ''}</div></div>`;
 }
 function todayHint(d) {
@@ -550,6 +568,7 @@ VIEWS.st_today = {
     const hint = rel && d.in && !d.out ? `<span class="t-ok">ร้านกลับก่อนได้แล้ว ถ่ายรูปออกงานได้เลย</span>` : todayHint(d);
     const note = (rel ? `<div class="pass-note release"><span class="tag ok">กลับก่อนได้</span> ร้าน ${esc(rel.shop)} กลับได้ตั้งแต่ ${esc(rel.from)} น.${rel.note ? ` · ${esc(rel.note)}` : ''} ไม่นับว่าออกก่อนเวลา</div>` : '')
       + (d.shop && d.shop !== p.shop_code ? `<div class="pass-note"><span class="tag">ไปช่วยร้าน ${esc(d.shop)}</span> วันนี้ลงเวลาที่ร้าน ${esc(d.shop)}</div>` : '')
+      + (d.leave && !d.in ? '<div class="pass-note release"><span class="tag ok">วันลา</span> วันนี้เป็นวันลาที่หัวหน้าอนุมัติแล้ว</div>' : '')
       + (d.note ? `<div class="pass-note"><span class="tag">หมายเหตุกะ</span> ${esc(d.note)}</div>`
         : !d.has_shift ? '<div class="pass-note">วันนี้ยังไม่มีกะในตาราง ลงเวลาได้ตามปกติ</div>' : '');
     return `<article class="pass" aria-label="ลงเวลาวันนี้">
@@ -565,14 +584,46 @@ VIEWS.st_today = {
   },
 };
 VIEWS.st_shifts = {
-  async load() { S.myShifts = await api('my_shifts'); S.today = S.myShifts.today || S.today; },
+  async load() {
+    const [a, b] = await Promise.all([api('my_shifts'), api('my_leaves')]);
+    S.myShifts = a; S.myLeaves = b; S.today = a.today || S.today;
+  },
   render() {
-    const r = S.myShifts;
+    const r = S.myShifts, lv = S.myLeaves || {};
     const rows = (r.days || []).map((d) => `<li class="day-row${d.date === r.today ? ' today' : ''}"><span class="d">${d.date === r.today ? 'วันนี้' : dShort(d.date)}</span>
-      <span class="${d.off ? 't-bad' : d.has_shift ? 'num' : 't-muted'}">${!d.has_shift && d.pending ? 'ตารางรอหัวหน้าอนุมัติ' : shiftText(d)}${d.shop && d.shop !== S.me.shop_code ? ` <span class="tag">ร้าน ${esc(d.shop)}</span>` : ''}${d.has_shift && d.pending ? ' <span class="tag warn">มีแก้ไข รออนุมัติ</span>' : ''}</span>${d.note ? `<span class="x">${esc(d.note)}</span>` : ''}</li>`).join('');
-    return `<div class="stack"><div><h1 class="view-title">กะของฉัน</h1><p class="note">14 วันข้างหน้า ถ้ามีการเปลี่ยนกะตามไฟลท์ จะเห็นที่นี่ทันที</p></div><ol class="panel list">${rows}</ol></div>`;
+      <span class="${d.off ? 't-bad' : d.has_shift ? 'num' : 't-muted'}">${!d.has_shift && d.pending ? 'ตารางรอหัวหน้าอนุมัติ' : shiftText(d)}${d.shop && d.shop !== S.me.shop_code ? ` <span class="tag">ร้าน ${esc(d.shop)}</span>` : ''}${d.has_shift && d.pending ? ' <span class="tag warn">มีแก้ไข รออนุมัติ</span>' : ''}${d.leave ? ' <span class="tag ok">ลา</span>' : d.leave_pending ? ' <span class="tag warn">ขอลา รออนุมัติ</span>' : ''}</span>${d.note ? `<span class="x">${esc(d.note)}</span>` : ''}</li>`).join('');
+    const items = (lv.items || []).map((l) => leaveItem(l, 'me')).join('');
+    return `<div class="stack"><div><h1 class="view-title">กะของฉัน</h1><p class="note">14 วันข้างหน้า ถ้ามีการเปลี่ยนกะตามไฟลท์ จะเห็นที่นี่ทันที</p></div><ol class="panel list">${rows}</ol>
+      <div class="view-head"><h2 class="section-title">การลาของฉัน</h2><button class="btn solid" type="button" data-act="leave-new">+ ขอลา</button></div>
+      <p class="note">ปีนี้ลาไปแล้ว <b>${lv.year_days || 0}</b> วัน · ต้องขอล่วงหน้าอย่างน้อย 24 ชม. และหัวหน้าต้องอนุมัติก่อน ถ้าป่วยหรือฉุกเฉินให้โทรหาหัวหน้า</p>
+      ${items ? `<ul class="panel list">${items}</ul>` : '<p class="panel empty">ยังไม่เคยขอลา</p>'}</div>`;
   },
 };
+/* One leave request. who: 'me' (staff: cancel while pending) or 'adm' (head: approve / reject / cancel) */
+function leaveItem(l, who) {
+  const st = LEAVE_ST[l.status] || ['', ''];
+  let btns = '';
+  if (who === 'me' && l.status === 'pending') btns = `<div class="row-btns"><button class="btn" type="button" data-act="leave-cancel" data-id="${esc(l.id)}" data-confirm="แตะอีกครั้งเพื่อยกเลิก">ยกเลิกคำขอ</button></div>`;
+  if (who === 'adm' && l.status === 'pending') btns = `<div class="row-btns"><button class="btn good" type="button" data-act="leave-decide" data-v="approved" data-id="${esc(l.id)}">อนุมัติ</button>
+      <button class="btn danger" type="button" data-act="leave-decide" data-v="rejected" data-id="${esc(l.id)}" data-confirm="แตะอีกครั้งเพื่อไม่อนุมัติ">ไม่อนุมัติ</button></div>`;
+  if (who === 'adm' && l.status === 'approved' && l.from > S.today) btns = `<div class="row-btns"><button class="btn" type="button" data-act="leave-decide" data-v="cancelled" data-id="${esc(l.id)}" data-confirm="แตะอีกครั้งเพื่อยกเลิกการลา">ยกเลิกการลา</button></div>`;
+  return `<li class="ev" style="grid-template-columns:${who === 'adm' ? 'auto ' : ''}1fr">${who === 'adm' ? avatar(l) : ''}<div class="item-main">
+      <div class="item-line">${who === 'adm' ? `<span class="item-name">${esc(l.nickname)}</span>${shopGate(l.shop_code)}` : ''}<b>${dRange(l.from, l.to)}</b><span class="note">${l.days} วัน</span><span class="chip ${st[1]}">${st[0]}</span></div>
+      <div class="item-sub">เหตุผล: ${esc(l.reason)}</div>
+      ${l.status !== 'pending' && l.by ? `<div class="item-sub">${st[0]}โดย ${esc(l.by)}${l.note ? ` · ${esc(l.note)}` : ''}</div>` : ''}
+      ${who === 'adm' && l.status === 'pending' ? `<div class="item-sub">ขอเมื่อ ${dShort(String(l.created).slice(0, 10))} ${esc(String(l.created).slice(11, 16))} น.</div>` : ''}
+      ${btns}</div></li>`;
+}
+function openLeaveForm() {
+  const min = (S.myLeaves && S.myLeaves.earliest) || addDays(S.today, 2);
+  sheet(`<h3>ขอลา</h3><p class="note">ลาเต็มวัน ต้องขอล่วงหน้าอย่างน้อย 24 ชม. ตอนนี้ลาได้ตั้งแต่ ${dLong(min)} เป็นต้นไป ถ้าป่วยหรือฉุกเฉินให้โทรหาหัวหน้า</p>
+    <div class="grid2"><div class="field"><label for="lv-from">ตั้งแต่วันที่</label><input type="date" id="lv-from" min="${min}" value="${min}"></div>
+      <div class="field"><label for="lv-to">ถึงวันที่</label><input type="date" id="lv-to" min="${min}" value="${min}"></div></div>
+    <div class="field"><label for="lv-reason">เหตุผล</label><textarea id="lv-reason" maxlength="300" placeholder="เช่น กลับบ้านต่างจังหวัด งานแต่งญาติ"></textarea></div>
+    <p class="note">หัวหน้าต้องอนุมัติก่อน การลาถึงจะมีผล</p>
+    <p class="err" id="sheet-err" role="alert"></p>
+    <div class="sheet-actions"><button class="btn" type="button" data-act="close">ยกเลิก</button><button class="btn solid" type="button" data-act="leave-save">ส่งคำขอลา</button></div>`);
+}
 VIEWS.st_history = {
   async load() {
     if (!S.histMonth) S.histMonth = S.today.slice(0, 7);
@@ -592,9 +643,14 @@ VIEWS.st_history = {
           <button class="btn" type="button" data-act="my-face" data-src="pick">${svg('image', 22)}เลือกรูปจากอัลบั้ม</button></div></div></section>`;
     return `<div class="stack">${meCard}<div class="view-head"><h1 class="view-title">ประวัติของฉัน</h1>
       <div class="field" style="min-width:12rem"><label class="vh" for="hist-month">เดือน</label><select id="hist-month">${opts}</select></div></div>
-      <div class="tiles"><div class="panel tile"><span class="k">มาทำงาน</span><span class="v">${t.worked || 0}</span>วัน</div>
-        <div class="panel tile ${t.late_n ? 'warn' : ''}"><span class="k">มาสาย</span><span class="v">${t.late_n || 0}</span>ครั้ง · ${t.late_m || 0} นาที${t.late_ok_n ? ` · อนุญาต ${t.late_ok_n} ครั้ง` : ''}</div>
+      <div class="tiles"><div class="panel tile ${lateCls(t.late_m)}"><span class="k">มาสายรวม</span><span class="v">${fmtN(t.late_m)}</span>นาที · ${t.late_n || 0} ครั้ง${t.late_ok_n ? ` · อนุญาต ${t.late_ok_n} ครั้ง` : ''}</div>
+        <div class="panel tile money"><span class="k">เงินเพิ่มเดือนนี้</span><span class="v">${fmtN(t.extra_baht)}</span>บาท</div>
+        <div class="panel tile ${t.ot_n ? 'ok' : ''}"><span class="k">OT</span><span class="v">${t.ot_n || 0}</span>ครั้ง · ${baht(t.ot_baht)}</div>
+        <div class="panel tile ${t.r2_n ? 'ok' : ''}"><span class="k">มา 2 รอบ</span><span class="v">${t.r2_n || 0}</span>วัน · ${baht(t.r2_baht)}</div>
+        <div class="panel tile"><span class="k">มาทำงาน</span><span class="v">${t.worked || 0}</span>วัน</div>
+        <div class="panel tile"><span class="k">วันลา</span><span class="v">${t.leave_n || 0}</span>วัน</div>
         <div class="panel tile ${t.early_n ? 'warn' : ''}"><span class="k">ออกก่อนเวลา</span><span class="v">${t.early_n || 0}</span>ครั้ง</div></div>
+      <p class="note">เงินเพิ่ม = เงิน OT + เงินมา 2 รอบ ยังไม่รวมเงินเดือน · สีนาทีสาย เขียว = ไม่สาย ยิ่งแดงยิ่งสายมาก</p>
       ${rows ? `<ol class="panel list">${rows}</ol>` : '<p class="panel empty">ยังไม่มีข้อมูลในเดือนนี้</p>'}</div>`;
   },
 };
@@ -605,7 +661,7 @@ VIEWS.adm_board = {
     S.board = await api('adm_board', { date: S.boardDate || '' });
     S.today = S.board.today;
     S.badges.people = S.board.pending_people;
-    S.badges.notices = S.board.pending_absences;
+    S.badges.notices = (S.board.pending_absences || 0) + (S.board.pending_leaves || 0);
     S.badges.roster = S.board.rosters_pending;
   },
   render() {
@@ -627,6 +683,7 @@ VIEWS.adm_board = {
     const banners = [
       r.pending_people ? `<button class="banner" type="button" data-act="tab" data-t="people">มีพนักงานใหม่รออนุมัติ ${r.pending_people} คน</button>` : '',
       r.pending_absences ? `<button class="banner bad" type="button" data-act="tab" data-t="notices">มีวันขาดงานรอยืนยัน ${r.pending_absences} รายการ</button>` : '',
+      r.pending_leaves ? `<button class="banner" type="button" data-act="tab" data-t="notices">มีคำขอลารออนุมัติ ${r.pending_leaves} รายการ</button>` : '',
       r.rosters_pending ? `<button class="banner" type="button" data-act="tab" data-t="roster">ตารางเวรรออนุมัติ ${r.rosters_pending} วัน</button>` : '',
     ].join('');
     const rels = r.releases || [], relOf = (code) => rels.find((x) => x.shop === code);
@@ -646,7 +703,7 @@ VIEWS.adm_board = {
         const times = [d.in ? `เข้า ${hm(d.in)}` : '', d.out ? `ออก ${hm(d.out)}` : ''].filter(Boolean).join(' · ');
         return `<li><button class="item" type="button" data-act="board-person" data-id="${esc(p.id)}">${avatar(p)}<span class="item-main">
           <span class="item-line"><span class="item-name">${esc(p.nickname)}</span><span class="num">${shiftText(d)}</span>${p.home_shop && p.home_shop !== p.shop_code ? `<span class="tag">มาจาก ${esc(p.home_shop)}</span>` : ''}</span>
-          <span class="item-line">${stateChip(d)}${photoFlag(d)}${times && d.state !== 'done' ? `<span class="item-sub num">${times}</span>` : d.state === 'done' ? `<span class="item-sub num">เข้า ${hm(d.in)}</span>` : ''}</span>
+          <span class="item-line">${stateChip(d)}${photoFlag(d)}${d.ot ? `<span class="tag ok">OT ${d.ot}</span>` : ''}${d.round2 ? '<span class="tag ok">2 รอบ</span>' : ''}${d.forgot ? '<span class="tag">ลืมเช็คเอาท์</span>' : ''}${d.ot_waived ? '<span class="tag">ไม่นับ OT</span>' : ''}${times && d.state !== 'done' ? `<span class="item-sub num">${times}</span>` : d.state === 'done' ? `<span class="item-sub num">เข้า ${hm(d.in)}</span>` : ''}</span>
           ${d.note ? `<span class="item-sub">${esc(d.note)}</span>` : ''}</span></button></li>`;
       }).join('');
       const rl = relOf(s.code);
@@ -691,6 +748,10 @@ function openBoardPerson(id) {
     <div class="photos2">${fig('in', 'เข้างาน')}${fig('out', 'ออกงาน')}</div>
     ${dayNotes(d) ? `<p>${dayNotes(d)}</p>` : ''}
     ${d.late || d.early ? `<div class="row-btns">${excuseBtn(p, date, d, 'late')}${excuseBtn(p, date, d, 'early')}</div>` : ''}
+    ${d.in ? `<div class="row-btns">${d.forgot ? '' : `<button class="btn" type="button" data-act="forgot-out" data-id="${esc(p.id)}" data-date="${date}" data-confirm="แตะอีกครั้ง: ปิดที่เวลาเลิกกะ ไม่คิด OT">ลืมเช็คเอาท์</button>`}
+      ${d.ot_waived ? `<button class="btn ok" type="button" data-act="ot-waive" data-on="0" data-id="${esc(p.id)}" data-date="${date}">นับ OT ตามปกติ</button>`
+        : d.ot || d.round2 ? `<button class="btn" type="button" data-act="ot-waive" data-on="1" data-id="${esc(p.id)}" data-date="${date}" data-confirm="แตะอีกครั้งเพื่อไม่นับ OT">ไม่นับ OT วันนี้</button>` : ''}</div>
+      <p class="note">${d.forgot ? 'ปิดวันแบบลืมเช็คเอาท์แล้ว ถ้าจะใส่เวลาออกจริง กด "แก้เวลาออก"' : 'ลืมเช็คเอาท์ = ปิดวันที่เวลาเลิกกะ ไม่คิด OT ไม่นับออกก่อน'}</p>` : ''}
     <div class="row-btns"><button class="btn" type="button" data-act="punch-edit" data-id="${esc(p.id)}" data-kind="in">แก้เวลาเข้า</button>
       <button class="btn" type="button" data-act="punch-edit" data-id="${esc(p.id)}" data-kind="out">แก้เวลาออก</button></div>
     <div class="row-btns"><button class="btn" type="button" data-act="ros-open" data-d="${date}">ตารางเวรวันนี้</button>
@@ -1155,8 +1216,9 @@ function weekHTML(r) {
 VIEWS.adm_notices = {
   async load() {
     if (!S.noticeMonth) S.noticeMonth = S.today.slice(0, 7);
-    S.notices = await api('adm_notices', { from: `${S.noticeMonth}-01`, to: minKey(monthEnd(S.noticeMonth), S.today) });
-    S.badges.notices = (S.notices.pending || []).length;
+    const [n, l] = await Promise.all([api('adm_notices', { from: `${S.noticeMonth}-01`, to: minKey(monthEnd(S.noticeMonth), S.today) }), api('adm_leaves')]);
+    S.notices = n; S.leaves = l;
+    S.badges.notices = (n.pending || []).length + (l.pending || []).length;
   },
   render() {
     const r = S.notices;
@@ -1169,7 +1231,12 @@ VIEWS.adm_notices = {
       .map(([k, l]) => `<button type="button" data-act="notice-filter" data-f="${k}" aria-pressed="${S.noticeFilter === k}">${l}</button>`).join('');
     const evs = (r.events || []).filter((e) => S.noticeFilter === 'all' || e.category === S.noticeFilter);
     const opts = monthsBack(12).map((m) => `<option value="${m}"${m === S.noticeMonth ? ' selected' : ''}>${monthLabel(m)}</option>`).join('');
-    return `<div class="stack"><div class="view-head"><h1 class="view-title">บันทึกความผิด</h1>
+    const lv = S.leaves || {}, lvPend = (lv.pending || []).map((l) => leaveItem(l, 'adm')).join('');
+    const lvRecent = (lv.recent || []).map((l) => leaveItem(l, 'adm')).join('');
+    return `<div class="stack">
+      ${lvPend ? `<section class="panel"><div class="shop-head"><b class="t-warn">คำขอลา รออนุมัติ (${lv.pending.length})</b></div><ul class="list">${lvPend}</ul></section>` : ''}
+      ${lvRecent ? `<details class="panel"><summary class="shop-head" style="cursor:pointer"><b>การลาที่ตอบแล้ว (${lv.recent.length})</b><span class="note">60 วันล่าสุดและที่จะถึง</span></summary><ul class="list">${lvRecent}</ul></details>` : ''}
+      <div class="view-head"><h1 class="view-title">บันทึกความผิด</h1>
         <button class="btn solid" type="button" data-act="notice-new">+ บันทึกความผิด</button></div>
       ${pend ? `<section class="panel"><div class="shop-head"><b class="t-bad">ขาดงาน รอยืนยัน (${r.pending.length})</b></div><ul class="list">${pend}</ul></section>` : ''}
       <div class="field"><label for="notice-month">เดือน</label><select id="notice-month">${opts}</select></div>
@@ -1210,16 +1277,33 @@ VIEWS.adm_summary = {
     S.summary = await api('adm_summary', periodRange(S.period));
   },
   render() {
-    const rows = S.summary.rows || [];
+    const sort = S.sumSort || 'shop';
+    const by = { shop: (a, b) => a.sort_key.localeCompare(b.sort_key), late: (a, b) => b.late_m - a.late_m || a.sort_key.localeCompare(b.sort_key),
+      money: (a, b) => b.extra_baht - a.extra_baht || a.sort_key.localeCompare(b.sort_key) };
+    const rows = (S.summary.rows || []).slice().sort(by[sort] || by.shop);
+    const tot = rows.reduce((t, x) => ({ late: t.late + x.late_m, ot: t.ot + x.ot_n, r2: t.r2 + x.r2_n, money: t.money + x.extra_baht }), { late: 0, ot: 0, r2: 0, money: 0 });
     const cell = (n, m) => `${n ? `<b class="t-warn">${n}</b>` : '0'}${m ? `<span class="k">${m} นาที</span>` : ''}`;
+    const num = (n, sub) => `${n ? `<b>${fmtN(n)}</b>` : '0'}${sub ? `<span class="k">${sub}</span>` : ''}`;
     const body = rows.map((x) => `<tr data-act="person-open" data-id="${esc(x.person_id)}" data-back="summary">
-      <td><b>${esc(x.nickname)}</b>${x.status === 'inactive' ? '<span class="k">ลาออกแล้ว</span>' : ''}</td><td>${shopGate(x.shop_code)}</td>
-      <td class="r">${x.worked}</td><td class="r">${cell(x.late_n, x.late_m)}</td><td class="r">${cell(x.early_n, x.early_m)}</td>
+      <td><b>${esc(x.nickname)}</b>${x.status === 'inactive' ? '<span class="k">ลาออกแล้ว</span>' : ''}<span class="k">${esc(x.shop_code || '')}</span></td>
+      <td class="r">${latePill(x.late_m)}<span class="k">${x.late_n} ครั้ง</span></td>
+      <td class="r"><b class="${x.extra_baht ? 't-ok' : ''}">${fmtN(x.extra_baht)}</b></td>
+      <td class="r">${num(x.ot_n, baht(x.ot_baht))}</td><td class="r">${num(x.r2_n, baht(x.r2_baht))}</td>
+      <td class="r">${x.worked}</td><td class="r">${x.leave_n || 0}</td><td class="r">${cell(x.early_n, x.early_m)}</td>
       <td class="r">${x.absent_n ? `<b class="t-bad">${x.absent_n}</b>` : '0'}${x.pending_absent ? `<span class="k">รอยืนยัน ${x.pending_absent}</span>` : ''}</td>
       <td class="r">${x.other_n ? `<b class="t-bad">${x.other_n}</b>` : '0'}</td></tr>`).join('');
-    return `<div class="stack"><div><h1 class="view-title">สรุปพิจารณาความดีความชอบ</h1><p class="note">แตะชื่อเพื่อดูรายละเอียดทุกครั้ง</p></div>
+    const sorts = [['shop', 'ตามร้าน'], ['late', 'สายมากสุด'], ['money', 'เงินเพิ่มมากสุด']]
+      .map(([k, l]) => `<button type="button" data-act="sum-sort" data-s="${k}" aria-pressed="${sort === k}">${l}</button>`).join('');
+    return `<div class="stack"><div><h1 class="view-title">สรุปท้ายเดือน</h1><p class="note">นาทีสาย OT และเงินเพิ่มของทุกคน แตะชื่อเพื่อดูรายวัน</p></div>
       <div class="field"><label for="sum-period">ช่วงเวลา</label>${periodSelect('sum-period', S.period)}</div>
-      ${rows.length ? `<div class="panel table-scroll"><table class="t"><thead><tr><th>ชื่อ</th><th>ร้าน</th><th class="r">ทำงาน (วัน)</th><th class="r">สาย (ครั้ง)</th><th class="r">ปิดก่อนเวลา</th><th class="r">ขาดไม่แจ้ง</th><th class="r">อื่นๆ</th></tr></thead><tbody>${body}</tbody></table></div>`
+      ${rows.length ? `<div class="panel stats" style="grid-template-columns:repeat(3,1fr)">
+          <div class="stat ${tot.late ? 'warn' : ''}"><span class="stat-v">${fmtN(tot.late)}</span><span class="stat-k">นาทีสายรวม</span></div>
+          <div class="stat ${tot.ot ? 'ok' : ''}"><span class="stat-v">${fmtN(tot.ot)}</span><span class="stat-k">OT รวม (ครั้ง)</span></div>
+          <div class="stat ${tot.money ? 'ok' : ''}"><span class="stat-v">${fmtN(tot.money)}</span><span class="stat-k">เงินเพิ่มรวม (บาท)</span></div></div>
+        <div class="filters" role="group" aria-label="เรียง">${sorts}</div>
+        <div class="panel table-scroll"><table class="t sum"><thead><tr><th>ชื่อ</th><th class="r">สายรวม</th><th class="r">เงินเพิ่ม (บาท)</th><th class="r">OT (ครั้ง)</th><th class="r">2 รอบ (วัน)</th><th class="r">ทำงาน (วัน)</th><th class="r">ลา (วัน)</th><th class="r">ปิดก่อนเวลา</th><th class="r">ขาดไม่แจ้ง</th><th class="r">อื่นๆ</th></tr></thead><tbody>${body}</tbody></table></div>
+        <p class="note">เงินเพิ่ม = เงิน OT + เงินมา 2 รอบ ยังไม่รวมเงินเดือน · นาทีสายไม่นับวันที่หัวหน้าอนุญาต </p>
+        <p class="legend">สีนาทีสาย: <span class="late-pill lt0">ไม่สาย</span> <span class="late-pill lt1">1–15</span> <span class="late-pill lt2">16–30</span> <span class="late-pill lt3">31–60</span> <span class="late-pill lt4">เกิน 60 นาที</span></p>`
         : '<p class="panel empty">ยังไม่มีข้อมูลในช่วงนี้</p>'}
       ${rows.length ? '<button class="btn wide" type="button" data-act="sum-copy">คัดลอกไปวางใน Excel</button>' : ''}</div>`;
   },
@@ -1231,20 +1315,40 @@ VIEWS.adm_person = {
   },
   render() {
     const r = S.personData, p = r.person, s = r.summary || {};
-    const tile = (k, v, unit, cls) => `<div class="panel tile ${v ? cls : ''}"><span class="k">${k}</span><span class="v">${v || 0}</span>${unit}</div>`;
-    const days = (r.days || []).map((d) => `<tr><td class="num">${dSlash(d.date)}</td><td class="num">${d.off ? 'หยุด' : d.has_shift ? `${hm(d.start)}-${hm(d.end)}` : '-'}</td><td class="num">${hm(d.in)}</td><td class="num">${hm(d.out)}</td><td>${dayNotes(d)}</td></tr>`).join('');
+    const tile = (k, v, unit, cls) => `<div class="panel tile ${v ? cls : ''}"><span class="k">${k}</span><span class="v">${fmtN(v)}</span>${unit}</div>`;
+    const asc = (r.days || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    const shiftCell = (d) => (d.off ? 'หยุด' : d.has_shift ? `${hm(d.start)}-${d.open_end ? 'ลูกค้าหมด' : hm(d.end)}` : '-');
+    const late = asc.filter((d) => d.late > 0);
+    const lateRows = late.map((d) => `<tr><td class="num">${dDM(d.date)}</td><td class="num">${hm(d.start)}</td><td class="num">${hm(d.in)}</td>
+      <td class="r">${latePill(d.late, d.late_ok)}${d.late_ok ? `<span class="k wrap">อนุญาต ไม่นับ${okNote(d.late_ok_note)}</span>` : ''}</td></tr>`).join('');
+    const otDays = asc.filter((d) => d.ot || d.round2);
+    const otRows = otDays.map((d) => `<tr><td class="num">${dDM(d.date)}</td><td class="num">${hm(d.in)}–${hm(d.out)}</td>
+      <td class="num">${d.round2 ? '-' : hDur(d.work_min)}</td><td class="r"><b>${d.round2 ? '2 รอบ' : `OT ${d.ot}`}</b><span class="k">${baht(d.ot_baht + d.round2_baht)}</span></td></tr>`).join('');
+    const days = (r.days || []).map((d) => `<tr><td class="num">${dSlash(d.date)}</td><td class="num">${shiftCell(d)}</td><td class="num">${hm(d.in)}</td><td class="num">${hm(d.out)}</td><td class="num">${d.work_min != null ? hDur(d.work_min) : '-'}</td><td class="notes">${dayNotes(d)}</td></tr>`).join('');
+    const lateBox = `<h2 class="section-title">วันที่มาสาย</h2>
+      ${lateRows ? `<div class="panel table-scroll"><table class="t compact"><thead><tr><th>วันที่</th><th>เข้ากะ</th><th>มาถึง</th><th class="r">สาย</th></tr></thead><tbody>${lateRows}</tbody>
+        <tfoot><tr class="total"><td colspan="3">รวม ${s.late_n || 0} ครั้ง (ไม่นับที่อนุญาต)</td><td class="r">${latePill(s.late_m || 0)}</td></tr></tfoot></table></div>` : '<p class="panel empty">ไม่มาสายเลยในช่วงนี้</p>'}`;
+    const otBox = `<h2 class="section-title">OT และมา 2 รอบ</h2>
+      ${otRows ? `<div class="panel table-scroll"><table class="t compact"><thead><tr><th>วันที่</th><th>เข้า–ออก</th><th>ชม.</th><th class="r">ได้</th></tr></thead><tbody>${otRows}</tbody>
+        <tfoot><tr class="total"><td colspan="3">รวม OT ${s.ot_n || 0} ครั้ง · 2 รอบ ${s.r2_n || 0} วัน</td><td class="r num">${baht(s.extra_baht)}</td></tr></tfoot></table></div>` : '<p class="panel empty">ไม่มี OT ในช่วงนี้</p>'}`;
     return `<div class="stack"><button class="btn quiet" type="button" data-act="person-back" style="justify-self:start">‹ กลับ</button>
       <div class="item" style="cursor:default;padding:0">${avatar(p, 'lg')}<div class="item-main"><div class="item-line"><h1 class="view-title">${esc(p.nickname)}</h1>${shopGate(p.shop_code)}</div>
         ${p.full_name ? `<span class="item-sub">${esc(p.full_name)}</span>` : ''}<span class="item-sub num">${esc(fmtPhone(p.phone))}</span>
         ${p.status === 'inactive' ? '<span class="chip">ปิดใช้งาน</span>' : ''}</div></div>
       <div class="field"><label for="person-period">ช่วงเวลา</label>${periodSelect('person-period', S.personPeriod)}</div>
-      <div class="tiles">${tile('มาทำงาน', s.worked, 'วัน', '')}${tile('มาสาย', s.late_n, `ครั้ง · ${s.late_m || 0} นาที`, 'warn')}${tile('ปิดก่อนเวลา', s.early_n, `ครั้ง · ${s.early_m || 0} นาที`, 'warn')}
-        ${tile('ขาดไม่แจ้ง', s.absent_n, 'วัน', 'bad')}${tile('แจ้งลา', s.excused_n, 'วัน', '')}${tile('อื่นๆ', s.other_n, 'ครั้ง', 'bad')}${tile('อนุญาต สาย/ออกก่อน', (s.late_ok_n || 0) + (s.early_ok_n || 0), 'ครั้ง ไม่นับ', '')}</div>
+      <div class="tiles"><div class="panel tile ${lateCls(s.late_m)}"><span class="k">มาสายรวม</span><span class="v">${fmtN(s.late_m)}</span>นาที · ${s.late_n || 0} ครั้ง</div>
+        <div class="panel tile money"><span class="k">เงินเพิ่ม</span><span class="v">${fmtN(s.extra_baht)}</span>บาท</div>
+        ${tile('OT', s.ot_n, `ครั้ง · ${baht(s.ot_baht)}`, 'ok')}${tile('มา 2 รอบ', s.r2_n, `วัน · ${baht(s.r2_baht)}`, 'ok')}
+        ${tile('มาทำงาน', s.worked, 'วัน', '')}${tile('ลา (อนุมัติ)', s.leave_n, 'วัน', '')}${tile('ปิดก่อนเวลา', s.early_n, `ครั้ง · ${s.early_m || 0} นาที`, 'warn')}
+        ${tile('ขาดไม่แจ้ง', s.absent_n, 'วัน', 'bad')}${tile('แจ้งลา', s.excused_n, 'วัน', '')}${tile('อื่นๆ', s.other_n, 'ครั้ง', 'bad')}
+        ${tile('อนุญาต สาย/ออกก่อน', (s.late_ok_n || 0) + (s.early_ok_n || 0), 'ครั้ง ไม่นับ', '')}${tile('ลืมเช็คเอาท์', s.forgot_n, 'ครั้ง', '')}</div>
+      ${lateBox}${otBox}
       <button class="btn solid wide" type="button" data-act="notice-new" data-pid="${esc(p.id)}">+ บันทึกความผิดของ ${esc(p.nickname)}</button>
       <h2 class="section-title">รายการทั้งหมด</h2>
       ${(r.events || []).length ? `<ul class="panel list">${r.events.map((e) => eventItem(e, { hideName: true })).join('')}</ul>` : '<p class="panel empty">ไม่มีรายการในช่วงนี้</p>'}
       <h2 class="section-title">ลงเวลารายวัน</h2>
-      ${days ? `<div class="panel table-scroll"><table class="t"><thead><tr><th>ว/ด/ป</th><th>กะ</th><th>เข้า</th><th>ออก</th><th>หมายเหตุ</th></tr></thead><tbody>${days}</tbody></table></div>` : '<p class="panel empty">ยังไม่มีการลงเวลา</p>'}</div>`;
+      ${days ? `<div class="panel table-scroll"><table class="t compact"><thead><tr><th>ว/ด/ป</th><th>กะ</th><th>เข้า</th><th>ออก</th><th>ชม.</th><th>หมายเหตุ</th></tr></thead><tbody>${days}</tbody></table></div>
+        <button class="btn wide" type="button" data-act="person-copy">คัดลอกรายวันไปวางใน Excel</button>` : '<p class="panel empty">ยังไม่มีการลงเวลา</p>'}</div>`;
   },
 };
 function openPerson(id, back) {
@@ -1436,10 +1540,32 @@ const ACT = {
       const r = await api('punch', { kind: q.kind, photo: q.photo, src: 'live' });
       S.todayData = r; closeSheet(); paint();
       const d = r.day || {};
-      toast(q.kind === 'in' ? `บันทึกเข้างาน ${hm(d.in)} น. แล้ว${d.late ? ` (สาย ${d.late} นาที)` : ''}` : `บันทึกออกงาน ${hm(d.out)} น. แล้ว${d.early ? ` (ก่อนเวลา ${d.early} นาที)` : ''}`);
+      toast(q.kind === 'in' ? `บันทึกเข้างาน ${hm(d.in)} น. แล้ว${d.late ? ` (สาย ${d.late} นาที)` : ''}` : `บันทึกออกงาน ${hm(d.out)} น. แล้ว${d.early ? ` (ก่อนเวลา ${d.early} นาที)` : ''}${d.ot ? ` · ได้ OT ${d.ot} ครั้ง (${baht(d.ot_baht)})` : ''}${d.round2 ? ` · มา 2 รอบ +${baht(d.round2_baht)}` : ''}`);
     } catch (e) { sheetErr(e.message); }
   }),
 
+  'leave-new': () => openLeaveForm(),
+  'leave-save': (el) => busy(el, async () => {
+    const from = $('#lv-from').value, to = $('#lv-to').value || from, reason = $('#lv-reason').value.trim();
+    if (!from) return sheetErr('กรุณาเลือกวันที่ลา');
+    if (to < from) return sheetErr('วันสุดท้ายต้องไม่ก่อนวันแรก');
+    if (!reason) return sheetErr('กรุณาใส่เหตุผลที่ลา');
+    try { await api('leave_request', { from, to, reason }); closeSheet(); toast('ส่งคำขอลาแล้ว รอหัวหน้าอนุมัติ'); load(); } catch (e) { sheetErr(e.message); }
+  }),
+  'leave-cancel': (el) => busy(el, async () => {
+    try { await api('leave_cancel', { id: el.dataset.id }); toast('ยกเลิกคำขอลาแล้ว'); load(); } catch (e) { toast(e.message); }
+  }),
+  'leave-decide': (el) => busy(el, async () => {
+    const v = el.dataset.v;
+    try { await api('adm_leave_decide', { id: el.dataset.id, decision: v }); toast(v === 'approved' ? 'อนุมัติการลาแล้ว' : v === 'rejected' ? 'ไม่อนุมัติแล้ว' : 'ยกเลิกการลาแล้ว'); load(); } catch (e) { toast(e.message); }
+  }),
+  'forgot-out': (el) => busy(el, async () => {
+    try { const r = await api('adm_forgot_out', { person_id: el.dataset.id, date: el.dataset.date }); closeSheet(); toast(`ปิดวันที่ ${hm(r.out)} น. แล้ว · ไม่คิด OT`); load(); } catch (e) { sheetErr(e.message); }
+  }),
+  'ot-waive': (el) => busy(el, async () => {
+    const on = el.dataset.on === '1';
+    try { await api('adm_ot_waive', { person_id: el.dataset.id, date: el.dataset.date, on }); closeSheet(); toast(on ? 'ไม่นับ OT ของวันนี้แล้ว' : 'กลับมานับ OT ตามปกติแล้ว'); load(); } catch (e) { sheetErr(e.message); }
+  }),
   'board-day': (el) => { const d = +el.dataset.d; S.boardDate = d === 0 ? null : addDays(S.boardDate || S.today, d); if (S.boardDate === S.today) S.boardDate = null; load(); },
   'board-person': (el) => openBoardPerson(el.dataset.id),
   'punch-edit': (el) => openPunchEdit(el.dataset.id, el.dataset.kind),
@@ -1618,10 +1744,23 @@ const ACT = {
   'person-open': (el) => openPerson(el.dataset.id, el.dataset.back),
   'person-back': () => { S.adm = S.personBack || 'summary'; window.scrollTo(0, 0); load(); },
   'sum-copy': () => {
-    const rows = (S.summary.rows || []).map((x) => [x.nickname, x.shop_code || '', x.worked, x.late_n, x.late_m, x.early_n, x.early_m, x.absent_n, x.excused_n, x.other_n].join('\t'));
+    const rows = (S.summary.rows || []).slice().sort((a, b) => a.sort_key.localeCompare(b.sort_key)).map((x) => [x.nickname, x.shop_code || '', x.worked,
+      x.late_n, x.late_m, x.ot_n, x.ot_baht, x.r2_n, x.r2_baht, x.extra_baht, x.leave_n || 0, x.early_n, x.early_m, x.absent_n, x.excused_n, x.other_n, x.forgot_n || 0].join('\t'));
     const opt = periodOptions().find(([v]) => v === S.period);
-    copyText([`สรุป ${opt ? opt[1] : ''}`, ['ชื่อ', 'ร้าน', 'ทำงาน (วัน)', 'สาย (ครั้ง)', 'สาย (นาที)', 'ปิดก่อนเวลา (ครั้ง)', 'ปิดก่อนเวลา (นาที)', 'ขาดไม่แจ้ง', 'แจ้งลา', 'อื่นๆ'].join('\t')].concat(rows).join('\n'));
+    copyText([`สรุป ${opt ? opt[1] : ''}`, ['ชื่อ', 'ร้าน', 'ทำงาน (วัน)', 'สาย (ครั้ง)', 'สาย (นาทีรวม)', 'OT (ครั้ง)', 'OT (บาท)', 'มา 2 รอบ (วัน)', 'มา 2 รอบ (บาท)',
+      'เงินเพิ่มรวม (บาท)', 'ลา (วัน)', 'ปิดก่อนเวลา (ครั้ง)', 'ปิดก่อนเวลา (นาที)', 'ขาดไม่แจ้ง (วัน)', 'แจ้งลา (วัน)', 'อื่นๆ (ครั้ง)', 'ลืมเช็คเอาท์ (ครั้ง)'].join('\t'), ...rows].join('\n'),
+      'คัดลอกแล้ว ไปวางใน Excel ได้เลย');
   },
+  'person-copy': () => {
+    const r = S.personData, p = r.person;
+    const rows = (r.days || []).slice().sort((a, b) => a.date.localeCompare(b.date)).map((d) => [dSlash(d.date), d.off ? 'หยุด' : d.has_shift ? `${hm(d.start)}-${d.open_end ? 'ลูกค้าหมด' : hm(d.end)}` : '',
+      hm(d.in) === '-' ? '' : hm(d.in), hm(d.out) === '-' ? '' : hm(d.out), d.work_min != null ? d.work_min : '', d.late && !d.late_ok ? d.late : 0, d.late_ok ? d.late : 0,
+      d.early && !d.early_ok ? d.early : 0, d.ot, d.ot_baht, d.round2_baht, plain(dayNotes(d))].join('\t'));
+    const opt = periodOptions().find(([v]) => v === S.personPeriod);
+    copyText([`${p.nickname} ${opt ? opt[1] : ''}`, ['วันที่', 'กะ', 'เข้า', 'ออก', 'ทำงาน (นาที)', 'สาย (นาที)', 'สายที่อนุญาต (นาที)', 'ออกก่อน (นาที)', 'OT (ครั้ง)', 'OT (บาท)', 'มา 2 รอบ (บาท)', 'หมายเหตุ'].join('\t'), ...rows].join('\n'),
+      'คัดลอกแล้ว ไปวางใน Excel ได้เลย');
+  },
+  'sum-sort': (el) => { S.sumSort = el.dataset.s; paint(); },
 
   'person-new': () => openPersonEdit(''),
   'person-edit': (el) => openPersonEdit(el.dataset.id),
@@ -1693,6 +1832,7 @@ document.addEventListener('submit', async (ev) => {
 document.addEventListener('change', (ev) => {
   const id = ev.target.id, v = ev.target.value;
   if (id === 'hist-month') { S.histMonth = v; load(); }
+  else if (id === 'lv-from') { const t = $('#lv-to'); if (t) { t.min = v; if (!t.value || t.value < v) t.value = v; } }
   else if (id === 'notice-month') { S.noticeMonth = v; load(); }
   else if (id === 'sum-period') { S.period = v; load(); }
   else if (id === 'person-period') { S.personPeriod = v; load(); }
