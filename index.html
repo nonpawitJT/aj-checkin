@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="th">
+<html lang="th" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>A&amp;J เช็คอิน</title>
 <meta name="theme-color" content="#0F74B8">
+<script>try{if(localStorage.getItem('aj-theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <link rel="icon" type="image/png" href="logo-192.png">
 <link rel="apple-touch-icon" href="logo-192.png">
 <link rel="manifest" href="manifest.json">
@@ -27,13 +28,13 @@
   --font-data:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   color-scheme:light;
 }
-@media (prefers-color-scheme: dark){ :root{
+:root[data-theme="dark"]{
   --bg:#08131E; --surface:#0F1D2B; --surface-2:#152738; --ink:#EEF4FA; --muted:#B2C3D3; --line:#2A3E52; --rule:#53697F;
   --brand:#0C4C7A; --brand-ink:#FFFFFF; --brand-sub:#CFE3F3; --brand-line:rgb(255 255 255 / .4);
   --sign:#FD9627; --sign-ink:#0A2647; --action:#5DB6F2; --action-ink:#04121E; --action-soft:#12304A;
   --ok:#5DD39B; --ok-bg:#123227; --warn:#FFB067; --warn-bg:#3A2410; --bad:#FF8A80; --bad-bg:#3A1B19; --idle-bg:#22324A;
   --scrim:rgb(0 0 0 / .65); color-scheme:dark;
-}}
+}
 html{font-size:106.25%}
 html[data-size="lg"]{font-size:118.75%}
 *{box-sizing:border-box}
@@ -62,6 +63,8 @@ img{max-width:100%}
 .size-switch button{appearance:none;border:0;background:transparent;padding:4px 10px;min-height:40px;cursor:pointer;font-weight:600;color:var(--brand-ink)}
 .size-switch button[aria-pressed="true"]{background:var(--brand-ink);color:var(--brand)}
 .size-switch .lg{font-size:1.15em}
+.theme-switch button{padding:4px 9px;display:inline-flex;align-items:center;justify-content:center}
+.theme-switch svg{display:block}
 main{padding-block:16px calc(110px + env(safe-area-inset-bottom,0px))}
 main.no-nav{padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -191,10 +194,8 @@ button.item:hover{background:var(--surface-2)}
 .shift-btn.evening{background:#E3E5F8;border-color:#363F9C;color:#363F9C}
 .shift-btn.off{font-family:var(--font-body);color:var(--bad);border:1.5px dashed var(--bad)}
 .shift-btn.unset{font-family:var(--font-body);color:var(--muted);border-style:dashed}
-@media (prefers-color-scheme: dark){
-  .shift-btn.morning{background:#12323C;border-color:#7CD3EA;color:#7CD3EA}
-  .shift-btn.evening{background:#252A52;border-color:#B4B9FF;color:#B4B9FF}
-}
+:root[data-theme="dark"] .shift-btn.morning{background:#12323C;border-color:#7CD3EA;color:#7CD3EA}
+:root[data-theme="dark"] .shift-btn.evening{background:#252A52;border-color:#B4B9FF;color:#B4B9FF}
 
 /* tables */
 .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -223,10 +224,10 @@ table.t.sum td:first-child{white-space:nowrap}
 .tile.lt1{background:#FFF7E8} .tile.lt2{background:var(--warn-bg)} .tile.lt3{background:var(--bad-bg)}
 .tile.lt4{background:#9C1B12;color:#FFFFFF} .tile.lt4 .v,.tile.lt4 .k{color:#FFFFFF}
 .tile.money .v,.tile.ok .v{color:var(--ok)}
-@media (prefers-color-scheme: dark){
-  .lt1{color:#FFC977;background:#33240E} .tile.lt1{background:#2A1E0D} .tile.lt1 .v{color:#FFC977}
-  .lt4,.tile.lt4{background:#C2281D;color:#FFFFFF}
-}
+:root[data-theme="dark"] .lt1{color:#FFC977;background:#33240E}
+:root[data-theme="dark"] .tile.lt1{background:#2A1E0D}
+:root[data-theme="dark"] .tile.lt1 .v{color:#FFC977}
+:root[data-theme="dark"] .lt4,:root[data-theme="dark"] .tile.lt4{background:#C2281D;color:#FFFFFF}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(8.2rem,1fr));gap:8px}
 .tile{padding:10px 12px}
 .tile .v{font-size:1.6rem;font-weight:700;line-height:1.15;display:block}
@@ -437,7 +438,9 @@ button.tl-hours{color:var(--action);text-decoration:underline;text-underline-off
 .wk-bar{position:absolute;height:15px;border-radius:4px;background:#DDEEFB;border:1.5px solid #3F8BC6;box-sizing:border-box;padding:0 4px;font-size:.7rem;font-weight:700;line-height:12px;color:#0B1B2E;overflow:hidden;white-space:nowrap;text-align:left}
 .wk-bar.open{border-right-style:dashed}
 .wk-off{border-left:1px solid var(--line);border-top:1.5px solid var(--rule);background:var(--bad-bg);padding:8px;font-size:.86rem;font-weight:600}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tl-bar,:root:not([data-theme="light"]) .wk-bar{background:#163A57;border-color:#62B4EC;color:#E9F1F8}:root:not([data-theme="light"]) .ros-notes{background:#3A2410;border-color:#7A4A1A;color:#FFD8B0}:root:not([data-theme="light"]) .wk-cell.today{background:#12263A}}
+:root[data-theme="dark"] .tl-bar,:root[data-theme="dark"] .wk-bar{background:#163A57;border-color:#62B4EC;color:#E9F1F8}
+:root[data-theme="dark"] .ros-notes{background:#3A2410;border-color:#7A4A1A;color:#FFD8B0}
+:root[data-theme="dark"] .wk-cell.today{background:#12263A}
 /* wide screens (Mac / PC): side menu for managers, wider work area, week table */
 table.week{min-width:860px;table-layout:fixed}
 table.week thead th:first-child{width:8.5rem}

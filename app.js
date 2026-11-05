@@ -47,6 +47,8 @@ const ICON = {
   person: '<circle cx="10" cy="8" r="4"/><path d="M3 21c1-4 3.8-6 7-6s6 2 7 6M19 8v6M16 11h6"/>',
   cam: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>',
   refresh: '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>',
   chat: '<path d="M4 5h16v11H9l-5 4z"/>',
   clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
@@ -71,6 +73,10 @@ const S = {
 let size = 'md';
 try { size = localStorage.getItem('aj-size') || 'md'; } catch (e) { /* ignore */ }
 document.documentElement.dataset.size = size;
+/* Light or dark screen, chosen per phone (light unless this phone picked dark) */
+let theme = 'light';
+try { theme = localStorage.getItem('aj-theme') === 'dark' ? 'dark' : 'light'; } catch (e) { /* ignore */ }
+document.documentElement.dataset.theme = theme;
 
 /* ---------------------------------------------------------------- API */
 class AppError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
@@ -153,6 +159,7 @@ function route() {
 }
 
 /* ---------------------------------------------------------------- frame */
+const themeSwitch = () => `<div class="size-switch theme-switch" role="group" aria-label="สีหน้าจอ"><button type="button" data-act="theme" data-v="light" aria-pressed="${theme !== 'dark'}" aria-label="หน้าจอสว่าง" title="สว่าง">${svg('sun', 20)}</button><button type="button" data-act="theme" data-v="dark" aria-pressed="${theme === 'dark'}" aria-label="หน้าจอมืด" title="มืด">${svg('moon', 20)}</button></div>`;
 const sizeSwitch = () => `<div class="size-switch" role="group" aria-label="ขนาดตัวอักษร"><button type="button" data-act="size" data-s="md" aria-pressed="${size !== 'lg'}">ก</button><button type="button" class="lg" data-act="size" data-s="lg" aria-pressed="${size === 'lg'}">ก+</button></div>`;
 function devBar() {
   if (!ACT_AS || !S.actingAs) return '';
@@ -160,7 +167,7 @@ function devBar() {
   return `<div class="devbar"><span>ทดสอบในฐานะ ${who} · บันทึกจริง</span><button type="button" data-act="dev-exit">ออก</button></div>`;
 }
 function topbar(sub, extra) {
-  return `<header class="top">${devBar()}<div class="wrap"><div class="brand">${LOGO}<div><div class="brand-name">A&amp;J เช็คอิน</div><div class="brand-sub">${sub}</div></div></div>${extra || ''}${sizeSwitch()}</div></header>`;
+  return `<header class="top">${devBar()}<div class="wrap"><div class="brand">${LOGO}<div><div class="brand-name">A&amp;J เช็คอิน</div><div class="brand-sub">${sub}</div></div></div>${extra || ''}${themeSwitch()}${sizeSwitch()}</div></header>`;
 }
 function bare(inner) {
   $('#app').className = '';
@@ -1449,6 +1456,12 @@ const ACT = {
   reload: () => location.reload(),
   retry: () => load(),
   'reload-me': () => loadMe(),
+  theme: (el) => {
+    theme = el.dataset.v === 'dark' ? 'dark' : 'light';
+    try { localStorage.setItem('aj-theme', theme); } catch (e) { /* ignore */ }
+    document.documentElement.dataset.theme = theme;
+    document.querySelectorAll('[data-act="theme"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === theme)));
+  },
   size: (el) => { size = el.dataset.s; try { localStorage.setItem('aj-size', size); } catch (e) { /* ignore */ } document.documentElement.dataset.size = size; document.querySelectorAll('[data-act="size"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.s === size))); },
   mode: () => { S.mode = S.mode === 'admin' ? 'staff' : 'admin'; window.scrollTo(0, 0); load(); },
   tab: (el) => { closeSheet(); goTab(el.dataset.t); },
