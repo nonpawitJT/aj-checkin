@@ -57,6 +57,10 @@ const ICON = {
   check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.8"/>',
   out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/>',
+  tick: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21c1-4 3.8-6 7.5-6s6.5 2 7.5 6"/>',
 };
 const LOGO = '<img class="logo" src="logo-96.png" srcset="logo-96.png 1x, logo-192.png 2x" alt="A&amp;J group" width="44" height="44">';
 const LOGO_BIG = '<img class="logo" src="logo-192.png" srcset="logo-192.png 1x, logo-512.png 2x" alt="A&amp;J group" width="104" height="104">';
@@ -245,6 +249,15 @@ const hDur = (m) => `${Math.floor((m || 0) / 60)}:${pad((m || 0) % 60)}`;
 const dDM = (k) => { const d = parseD(k); return `${d.getDate()}/${d.getMonth() + 1}`; };
 const dRange = (a, b) => (a === b ? dShort(a) : `${dShort(a)} – ${dShort(b)}`);
 const LEAVE_ST = { pending: ['รออนุมัติ', 'warn'], approved: ['อนุมัติแล้ว', 'ok'], rejected: ['ไม่อนุมัติ', 'bad'], cancelled: ['ยกเลิกแล้ว', ''] };
+/* Round icon badge; tone: ok | warn | bad | idle | (blank = action blue) */
+const icCircle = (name, tone) => `<span class="ic-circle ${tone || ''}" aria-hidden="true">${svg(name, 22)}</span>`;
+const countBadge = (n) => (n ? `<span class="count-badge">${n}</span>` : '');
+/* A tappable "to do" row (icon, title, short line, ›). Without attrs it is a plain status row. */
+function todoRow(o) {
+  const inner = `${icCircle(o.icon, o.tone)}<span class="todo-t"><b>${o.title}</b>${o.sub ? `<span class="todo-s">${o.sub}</span>` : ''}</span>`;
+  return o.attrs ? `<button class="todo ${o.cls || ''}" type="button" ${o.attrs}>${inner}<span class="todo-go" aria-hidden="true">›</span></button>`
+    : `<div class="todo ${o.cls || ''}">${inner}</div>`;
+}
 const plain = (html) => String(html || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 function stateChip(d) {
   switch (d.state) {
@@ -303,6 +316,8 @@ function periodRange(v) {
   return { from: `${ymAdd(S.today.slice(0, 7), -11)}-01`, to: S.today };
 }
 const periodSelect = (id, val) => `<select id="${id}">${periodOptions().map(([v, l]) => `<option value="${v}"${v === val ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+/* icon + tone per kind of note: late = clock, closed early = arrow out, absent = warning, other = flag */
+const EV_IC = { late: ['clock', 'warn'], close_early: ['out', 'warn'], absent: ['alert', 'bad'], other: ['flag', 'bad'] };
 function eventItem(e, opts = {}) {
   const auto = e.kind === 'auto';
   const tag = auto ? (e.excused ? `<span class="tag ok">อนุญาตแล้ว${e.by ? ` · ${esc(e.by)}` : ''}</span>` : '<span class="tag">ระบบจับเอง</span>')
@@ -314,10 +329,12 @@ function eventItem(e, opts = {}) {
   const del = !auto ? `<button class="btn quiet" type="button" data-act="notice-del" data-id="${esc(e.id)}" data-confirm="แตะอีกครั้งเพื่อลบ">ลบ</button>`
     : excuseBtn(e, e.date, { [k]: e.minutes, [`${k}_ok`]: e.excused, [`${k}_ok_id`]: e.excuse_id }, k);
   const reason = auto && e.excused && e.reason ? `<div class="item-sub">เหตุผล: ${esc(e.reason)}</div>` : '';
-  return `<li class="ev"><div class="item-main">
-      <div class="item-line"><b>${dShort(e.date)}</b>${opts.hideName ? '' : `<span class="item-name">${esc(e.nickname)}</span>${shopGate(e.shop_code)}`}</div>
-      <div class="item-line"><span class="cat ${e.decision === 'excused' || e.excused ? '' : esc(e.category)}">${esc(label)}${mins}</span>${tag}</div>
-      ${e.detail ? `<div class="item-sub">${esc(e.detail)}</div>` : ''}${reason}${del ? `<div>${del}</div>` : ''}
+  const done = e.decision === 'excused' || e.excused;
+  const [ic, tone] = EV_IC[e.category] || EV_IC.other;
+  return `<li class="ev ev-ic">${icCircle(ic, done ? 'idle' : tone)}<div class="item-main">
+      <div class="ev-line">${opts.hideName ? '' : `<b>${esc(e.nickname)}</b>${e.shop_code ? ` · ${esc(e.shop_code)}` : ''} · `}<span class="cat ${done ? '' : esc(e.category)}">${esc(label)}${mins}</span></div>
+      ${e.detail ? `<div class="ev-detail">${esc(e.detail)}</div>` : ''}
+      <div class="item-line item-sub"><span>${dShort(e.date)}</span>${tag}</div>${reason}${del ? `<div>${del}</div>` : ''}
     </div>${thumb}</li>`;
 }
 
@@ -491,10 +508,13 @@ function camShot() {
 }
 
 /* ---------------------------------------------------------------- first-time screens */
+/* Sign-up is 2 steps: phone number, then details (only when the number is new) */
+const regHead = (step, title) => `<div class="reg-head">${LOGO}<div><span class="k">ขั้นที่ ${step} จาก 2</span><h1 class="view-title">${title}</h1></div></div>
+  <div class="steps" aria-hidden="true"><span class="on"></span><span${step > 1 ? ' class="on"' : ''}></span></div>`;
 function renderPhone(err) {
   bare(`<div class="welcome">
-    <div class="hero">${LOGO_BIG}<h1 class="view-title">สวัสดี${S.lineName ? ` ${esc(S.lineName)}` : ''}</h1>
-      <p class="note">ครั้งแรกให้กรอกเบอร์โทรของคุณ เพื่อผูกกับบัญชี LINE นี้ ครั้งต่อไปเปิดแอปได้เลย</p></div>
+    ${regHead(1, `สวัสดี${S.lineName ? ` ${esc(S.lineName)}` : ''}`)}
+    <p class="note">ครั้งแรกให้กรอกเบอร์โทรของคุณ เพื่อผูกกับบัญชี LINE นี้ ครั้งต่อไปเปิดแอปได้เลย</p>
     <form class="panel form" style="padding:18px" id="phone-form" novalidate>
       <div class="field"><label for="ph">เบอร์โทรศัพท์</label><input type="tel" id="ph" inputmode="numeric" autocomplete="tel" placeholder="08x-xxx-xxxx" value="${esc(fmtPhone(S.regPhone))}"></div>
       <p class="err" id="ph-err" role="alert">${esc(err)}</p>
@@ -504,23 +524,25 @@ function renderPhone(err) {
 function renderRegister() {
   const shops = S.shops.map((s) => `<button type="button" data-act="reg-shop" data-s="${esc(s.code)}" aria-pressed="${S.reg.shop === s.code}">${esc(s.code)}</button>`).join('');
   bare(`<div class="welcome">
-    <div><h1 class="view-title">ลงทะเบียนพนักงานใหม่</h1><p class="note">เบอร์ <span class="num">${esc(fmtPhone(S.regPhone))}</span> ยังไม่มีในระบบ กรอกข้อมูลแล้วรอหัวหน้าอนุมัติ</p></div>
+    ${regHead(2, 'ลงทะเบียนพนักงานใหม่')}
+    <p class="note">เบอร์ <span class="num">${esc(fmtPhone(S.regPhone))}</span> ยังไม่มีในระบบ กรอกข้อมูลแล้วรอหัวหน้าอนุมัติ</p>
     <form class="panel form" style="padding:18px" id="reg-form" novalidate>
       <div class="field"><label for="rg-nick">ชื่อเล่น</label><input type="text" id="rg-nick" maxlength="20" autocomplete="nickname"></div>
-      <div class="field"><label for="rg-full">ชื่อ-นามสกุล</label><input type="text" id="rg-full" maxlength="60" autocomplete="name"></div>
-      <div class="field"><span class="lbl">ร้านประจำ</span><div class="shopgrid" id="rg-shops">${shops}</div></div>
+      <div class="field"><label for="rg-full">ชื่อ-นามสกุล</label><input type="text" id="rg-full" maxlength="60" autocomplete="name" placeholder="ชื่อ นามสกุล"></div>
+      <div class="field"><span class="lbl">ร้านประจำ</span><div class="shopgrid big" id="rg-shops">${shops}</div></div>
       <div class="field"><span class="lbl">รูปหน้าตรง</span>
-        <div class="face-pick"><span class="avatar" id="rg-face-prev">${S.reg.face ? `<img src="${S.reg.face}" alt="">` : svg('cam', 34)}</span>
-        <button class="btn" type="button" data-act="reg-face">${S.reg.face ? 'ถ่ายใหม่' : 'ถ่ายรูปหน้าตรง'}</button></div>
-        <p class="help">ใช้เทียบกับรูปตอนลงเวลา</p></div>
+        <div class="face-pick"><span class="face-ph" id="rg-face-prev">${S.reg.face ? `<img src="${S.reg.face}" alt="">` : svg('user', 34)}</span>
+        <button class="btn" type="button" data-act="reg-face">${svg('cam', 22)}${S.reg.face ? 'ถ่ายใหม่' : 'ถ่ายรูปหน้าตรง'}</button></div>
+        <p class="help">ใช้เทียบกับรูปตอนลงเวลา ถ่ายจากกล้องในแอปเท่านั้น</p></div>
       <p class="err" id="rg-err" role="alert"></p>
       <button class="btn-primary" type="submit">ส่งข้อมูล</button>
       <button class="btn quiet" type="button" data-act="reg-back">เปลี่ยนเบอร์โทร</button>
     </form></div>`);
 }
 function renderPending() {
-  bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">ส่งข้อมูลแล้ว</h1>
-    <p>รอหัวหน้าอนุมัติ เมื่ออนุมัติแล้ว เปิดแอปนี้อีกครั้งเพื่อเริ่มลงเวลา</p></div>
+  bare(`<div class="welcome"><div class="hero">${LOGO_BIG}<h1 class="view-title">ส่งข้อมูลแล้ว</h1></div>
+    <section class="panel next-box" aria-label="ขั้นต่อไป">${icCircle('clock')}<div><b>ส่งแล้ว รอหัวหน้าอนุมัติ</b>
+      <span class="note">อนุมัติแล้ว เปิดแอปนี้อีกครั้งเพื่อเริ่มลงเวลา</span></div></section>
     <button class="btn wide" type="button" data-act="reload-me">ตรวจสอบอีกครั้ง</button></div>`);
 }
 /* A developer account is not a staff record: it only opens the monitor and acts as other people from there. */
@@ -653,6 +675,15 @@ function leaveItem(l, who) {
       ${who === 'adm' && l.status === 'pending' ? `<div class="item-sub">ขอเมื่อ ${dShort(String(l.created).slice(0, 10))} ${esc(String(l.created).slice(11, 16))} น.</div>` : ''}
       ${btns}</div></li>`;
 }
+/* A pending leave request as a decision card (head): who, dates, reason, approve / reject side by side */
+function leaveCard(l) {
+  return `<section class="panel dcard" aria-label="คำขอลา ${esc(l.nickname)}"><div class="dc-head">${icCircle('cal')}
+      <div class="dc-who"><span class="dc-k">ขอลา</span><b>${esc(l.nickname)}${l.shop_code ? ` · ร้าน ${esc(l.shop_code)}` : ''}</b></div></div>
+    <div class="dc-body"><span><b>${dRange(l.from, l.to)}</b> · ${l.days} วัน</span>
+      <span class="note">เหตุผล: ${esc(l.reason)} · ขอเมื่อ ${dShort(String(l.created).slice(0, 10))} ${esc(String(l.created).slice(11, 16))} น.</span></div>
+    <div class="dc-btns"><button class="btn good" type="button" data-act="leave-decide" data-v="approved" data-id="${esc(l.id)}">อนุมัติ</button>
+      <button class="btn danger" type="button" data-act="leave-decide" data-v="rejected" data-id="${esc(l.id)}" data-confirm="แตะอีกครั้งเพื่อไม่อนุมัติ">ไม่อนุมัติ</button></div></section>`;
+}
 function openLeaveForm() {
   const min = (S.myLeaves && S.myLeaves.earliest) || addDays(S.today, 2);
   sheet(`<h3>ขอลา</h3><p class="note">ลาเต็มวัน ต้องขอล่วงหน้าอย่างน้อย 24 ชม. ตอนนี้ลาได้ตั้งแต่ ${dLong(min)} เป็นต้นไป ถ้าป่วยหรือฉุกเฉินให้โทรหาหัวหน้า</p>
@@ -734,24 +765,34 @@ VIEWS.adm_board = {
       if (d.off) c.off++;
       if (d.has_shift && !d.off) c.plan++;
     });
-    const stat = (v, k, cls) => `<div class="stat ${v ? cls : ''}"><span class="stat-v">${v}</span><span class="stat-k">${k}</span></div>`;
+    /* overview: 2x2 boxes with an icon each (2 boxes for a future day) */
+    const sbox = (v, k, icon, tone) => `<div class="sbox ${tone}${v ? '' : ' zero'}">${icCircle(icon, tone)}<span class="sbox-t"><b>${v}</b><span>${k}</span></span></div>`;
     const stats = date > today
-      ? `<div class="panel stats" style="grid-template-columns:1fr 1fr">${stat(c.plan, 'เข้ากะตามตาราง', '')}${stat(c.off, 'หยุด', '')}</div>`
-      : `<div class="panel stats">${stat(c.in, date === today ? 'กำลังทำงาน' : 'ไม่ลงออก', 'ok')}${stat(c.late, 'มาสาย', 'warn')}${stat(c.miss, date === today ? 'ยังไม่เข้า' : 'ไม่มา', 'bad')}${stat(c.done, 'ออกแล้ว', '')}</div>`;
-    const banners = [
-      r.pending_people ? `<button class="banner" type="button" data-act="tab" data-t="people">มีพนักงานใหม่รออนุมัติ ${r.pending_people} คน</button>` : '',
-      r.pending_absences ? `<button class="banner bad" type="button" data-act="tab" data-t="notices">มีวันขาดงานรอยืนยัน ${r.pending_absences} รายการ</button>` : '',
-      r.pending_leaves ? `<button class="banner" type="button" data-act="tab" data-t="notices">มีคำขอลารออนุมัติ ${r.pending_leaves} รายการ</button>` : '',
-      r.rosters_pending ? `<button class="banner" type="button" data-act="tab" data-t="roster">ตารางเวรรออนุมัติ ${r.rosters_pending} วัน</button>` : '',
-    ].join('');
+      ? `<section class="sbox-grid" aria-label="ภาพรวม">${sbox(c.plan, 'เข้ากะตามตาราง', 'users', '')}${sbox(c.off, 'หยุด', 'cal', 'idle')}</section>`
+      : `<section class="sbox-grid" aria-label="ภาพรวม">${sbox(c.in, date === today ? 'กำลังทำงาน' : 'ไม่ลงออก', 'check', 'ok')}${sbox(c.late, 'มาสาย', 'clock', 'warn')}${sbox(c.miss, date === today ? 'ยังไม่เข้า' : 'ไม่มา', 'alert', 'bad')}${sbox(c.done, 'ออกแล้ว', 'out', 'idle')}</section>`;
+    /* "to do": one tappable row per thing waiting for the head; tomorrow's roster shows green once approved and is not counted */
+    const rt = r.roster_tomorrow, isToday = date === today;
+    const rtWait = isToday && rt === 'submitted';
+    const otherRos = Math.max(0, (r.rosters_pending || 0) - (rtWait ? 1 : 0));
+    const todo = [];
+    let rtRow = '';
+    if (isToday) {
+      const o = { attrs: `data-act="ros-open" data-d="${addDays(today, 1)}"`, icon: 'clip' };
+      if (rt === 'approved') rtRow = todoRow({ ...o, cls: 'ok', icon: 'check', title: 'ตารางเวรพรุ่งนี้ อนุมัติแล้ว', sub: 'แตะเพื่อดู' });
+      else if (rt === 'submitted') todo.push(todoRow({ ...o, cls: 'warn', title: 'ตารางเวรพรุ่งนี้ รออนุมัติ', sub: 'แตะเพื่อตรวจและอนุมัติ' }));
+      else todo.push(todoRow({ ...o, cls: 'bad', title: `ตารางเวรพรุ่งนี้ ${rt === 'draft' ? 'กำลังจัด ยังไม่ส่ง' : 'ยังไม่ได้จัด'}`, sub: 'แตะเพื่อดู' }));
+    }
+    if (otherRos) todo.push(todoRow({ attrs: 'data-act="tab" data-t="roster"', cls: 'warn', icon: 'clip', title: `ตารางเวร${rtWait ? 'วันอื่น' : ''} รออนุมัติ ${otherRos} วัน`, sub: 'แตะเพื่อดู' }));
+    if (r.pending_absences) todo.push(todoRow({ attrs: 'data-act="tab" data-t="notices"', cls: 'bad', icon: 'flag', title: `ขาดงาน รอยืนยัน ${r.pending_absences} รายการ`, sub: 'แตะเพื่อยืนยันว่าขาดหรือลา' }));
+    if (r.pending_leaves) todo.push(todoRow({ attrs: 'data-act="tab" data-t="notices"', icon: 'cal', title: `คำขอลา ${r.pending_leaves} รายการ`, sub: 'รออนุมัติ · แตะเพื่อดู' }));
+    if (r.pending_people) todo.push(todoRow({ attrs: 'data-act="tab" data-t="people"', icon: 'person', title: `พนักงานใหม่ รออนุมัติ ${r.pending_people} คน`, sub: 'แตะเพื่อดู' }));
+    const todoHTML = todo.length || rtRow ? `<section class="todo-list" aria-label="ต้องทำ">${todo.length ? `<h2 class="sec-h">ต้องทำ ${countBadge(todo.length)}</h2>` : ''}${todo.join('')}${rtRow}</section>` : '';
     const rels = r.releases || [], relOf = (code) => rels.find((x) => x.shop === code);
     const canRelease = date <= today;
     const releaseBar = canRelease ? `<div class="release-bar">
         <button class="release-btn" type="button" data-act="release-open">${svg('clock')}ให้ร้านกลับก่อนเวลา</button>
         ${rels.map((x) => `<div class="rel-chip"><span>ร้าน <b>${esc(x.shop)}</b> กลับได้ตั้งแต่ ${esc(x.from)} น.${x.note ? ` · ${esc(x.note)}` : ''}</span>
           <button type="button" data-act="release-cancel" data-s="${esc(x.shop)}" data-confirm="แตะอีกครั้งเพื่อยกเลิก">ยกเลิก</button></div>`).join('')}</div>` : '';
-    const rt = r.roster_tomorrow;
-    const tomorrowBanner = date === today ? `<button class="banner ${rt === 'approved' ? 'ok' : rt === 'submitted' ? '' : 'bad'}" type="button" data-act="ros-open" data-d="${addDays(today, 1)}">ตารางเวรพรุ่งนี้: ${rt === 'approved' ? 'อนุมัติแล้ว' : rt === 'submitted' ? 'รออนุมัติ' : rt === 'draft' ? 'กำลังจัด (ยังไม่ส่ง)' : 'ยังไม่ได้จัด'}</button>` : '';
     const shops = S.shops.map((s) => {
       const list = people.filter((p) => p.shop_code === s.code);
       if (!list.length) return '';
@@ -769,11 +810,11 @@ VIEWS.adm_board = {
       return `<section class="panel"><div class="shop-head">${shopGate(s.code)}<span class="note">เข้ากะ ${working} จาก ${list.length} คน</span>${relTag}</div><ul class="list">${rows}</ul></section>`;
     }).join('');
     return `<div class="stack">
-      <div class="datenav"><button class="icon-btn" type="button" data-act="board-day" data-d="-1" aria-label="วันก่อนหน้า">‹</button>
+      <div class="datenav panel"><button class="icon-btn" type="button" data-act="board-day" data-d="-1" aria-label="วันก่อนหน้า">‹</button>
         <div class="datenav-label"><span class="k">${date === today ? 'วันนี้' : date < today ? 'ย้อนหลัง' : 'ล่วงหน้า'}</span><strong>${dLong(date)}</strong></div>
         <button class="icon-btn" type="button" data-act="board-day" data-d="1" aria-label="วันถัดไป">›</button></div>
       ${date !== today ? '<button class="btn quiet" type="button" data-act="board-day" data-d="0">กลับมาวันนี้</button>' : ''}
-      ${banners}${tomorrowBanner}${stats}${releaseBar}
+      ${todoHTML}${stats}${releaseBar}
       ${shops ? `<div class="shop-grid">${shops}</div>` : '<p class="panel empty">ยังไม่มีพนักงานในระบบ ไปเพิ่มได้ที่เมนู "พนักงาน" หรือให้พนักงานเปิดแอปแล้วลงทะเบียนเอง</p>'}
       <p class="note center">แตะชื่อเพื่อดูรูป แก้เวลา หรือบันทึกความผิด</p></div>`;
   },
@@ -858,6 +899,8 @@ function shopGaps(code, list) {
   if (h[1] - cur >= 0.25) out.push({ a: cur, b: h[1] });
   return out.filter((g) => g.b - g.a >= 0.25).map((g) => Object.assign(g, { all: !list.length, openEnd: g.b >= 24 && !s.close }));
 }
+/* data-* for "add a person to this empty stretch" (same as tapping the orange gap on the timeline) */
+const gapAttrs = (code, g) => `data-act="ros-add" data-shop="${esc(code)}"${g.a != null ? ` data-start="${decKey(g.a)}"${g.openEnd ? ' data-open="1"' : ` data-end="${decKey(g.b)}"`}` : ''}`;
 const gapText = (g) => (g.a == null ? 'ทั้งวัน' : g.all ? 'ทั้งวัน' : `${decHm(g.a)} – ${g.openEnd ? OPEN_END : decHm(g.b)}`);
 function axisFrom(items) {
   let lo = 6;
@@ -932,7 +975,7 @@ function rosterHTML() {
     </div>${meta ? `<p class="note ros-meta">${meta}</p>` : ''}`;
   const head = `<div class="view-head"><div><h1 class="view-title">จัดเวร</h1>
       <p class="note">${admin ? 'ตรวจตารางแล้วกดอนุมัติ พนักงานจะเห็นกะทันที' : 'จัดตารางของวันรุ่งขึ้น แล้วกดส่งให้หัวหน้าตรวจ'}</p></div>
-      <button class="btn" type="button" data-act="go-week">ดูทั้งสัปดาห์</button></div>`;
+      <button class="btn" type="button" data-act="go-week">${svg('cal', 20)}ดูทั้งสัปดาห์</button></div>`;
   const src = r.sources || {};
   if (!items.length && !ro) {
     const start = readOnly ? '<p class="panel empty">ไม่มีตารางของวันนี้</p>'
@@ -951,7 +994,7 @@ function rosterHTML() {
   const rows = S.shops.map((s, si) => {
     const list = segs.filter((i) => i.shop_code === s.code).sort(byStart);
     const gaps = shopGaps(s.code, list);
-    gaps.forEach((g) => allGaps.push(`${s.code} ${gapText(g)}`));
+    gaps.forEach((g) => allGaps.push({ code: s.code, g }));
     const h = shopHours(s);
     const lanes = Math.max(1, list.length);
     const hoursBtn = admin
@@ -961,7 +1004,7 @@ function rosterHTML() {
     const openSeg = h ? `<span class="tl-open" style="left:${pctOf(h[0], lo)}%;width:${(pctOf(h[1], lo) - pctOf(h[0], lo)).toFixed(2)}%"></span>` : '';
     const gapEls = gaps.map((g) => {
       const a = g.a == null ? lo : g.a, b = g.b == null ? 24 : g.b;
-      const attrs = readOnly ? 'disabled' : `data-act="ros-add" data-shop="${esc(s.code)}"${g.a != null ? ` data-start="${decKey(g.a)}"${g.openEnd ? ' data-open="1"' : ` data-end="${decKey(g.b)}"`}` : ''}`;
+      const attrs = readOnly ? 'disabled' : gapAttrs(s.code, g);
       return `<button class="tl-gap" type="button" ${attrs} style="left:${pctOf(a, lo)}%;width:${(pctOf(b, lo) - pctOf(a, lo)).toFixed(2)}%" aria-label="ร้าน ${esc(s.code)} ไม่มีคน ${gapText(g)}"><span>${g.all ? `ไม่มีคน${readOnly ? '' : ' · แตะเพื่อเพิ่ม'}` : 'ว่าง'}</span></button>`;
     }).join('');
     const bars = list.map((i, k) => {
@@ -982,9 +1025,15 @@ function rosterHTML() {
   const off = items.filter((i) => i.off);
   const offRow = `<div class="tl-off"><b>หยุด</b><div class="chips">${off.map((i) => `<button class="pchip" type="button" data-act="ros-edit" data-id="${esc(i.id)}"${readOnly ? ' disabled' : ''}>${esc(i.name)}</button>`).join('') || '<span class="note">ไม่มี</span>'}
       ${readOnly ? '' : '<button class="pchip add" type="button" data-act="ros-add" data-off="1">+ เพิ่มคนหยุด</button>'}</div></div>`;
+  /* one row per empty stretch (tap = add a person for that stretch); past 3, the rest are summed up */
+  const gapRow = ({ code, g }) => todoRow({ cls: 'bad', icon: 'alert', attrs: readOnly ? '' : gapAttrs(code, g),
+    title: `ร้าน ${esc(code)} ไม่มีคน ${gapText(g)}`, sub: readOnly ? '' : 'แตะเพื่อเพิ่มคนช่วงนี้' });
+  const shown = allGaps.length > 3 ? allGaps.slice(0, 2) : allGaps;
+  const rest = allGaps.length - shown.length;
   const banner = !items.length ? ''
-    : allGaps.length ? `<div class="banner bad static">ร้านเปิดแต่ไม่มีคน ${allGaps.length} จุด: ${esc(allGaps.join(' · '))}</div>`
-      : '<div class="banner ok static">ทุกร้านมีคนครบตามเวลาเปิด</div>';
+    : allGaps.length ? `<div class="todo-list">${shown.map(gapRow).join('')}${rest ? todoRow({ cls: 'bad', icon: 'alert', title: `และร้านเปิดแต่ไม่มีคนอีก ${rest} จุด`,
+        sub: `${esc(allGaps.slice(2).map((x) => `${x.code} ${gapText(x.g)}`).join(' · '))}${readOnly ? '' : ' · แตะแถบสีส้มในตารางเพื่อเพิ่มคน'}` }) : ''}</div>`
+      : todoRow({ cls: 'ok', icon: 'check', title: 'ทุกร้านมีคนครบตามเวลาเปิด' });
   const notes = ro && ro.notes
     ? `<button class="ros-notes" type="button" data-act="ros-notes-edit"${readOnly ? ' disabled' : ''}>${svg('flag')}<span>${esc(ro.notes).replace(/\n/g, '<br>')}</span>${readOnly ? '' : '<em>แก้</em>'}</button>`
     : readOnly ? '' : '<button class="ros-notes empty" type="button" data-act="ros-notes-edit">+ เพิ่มประกาศ / ไฟลท์ของวันนี้</button>';
@@ -1279,28 +1328,39 @@ VIEWS.adm_notices = {
     S.badges.notices = (n.pending || []).length + (l.pending || []).length;
   },
   render() {
-    const r = S.notices;
-    const pend = (r.pending || []).map((x) => `<li class="ev" style="grid-template-columns:1fr"><div class="item-main">
-        <div class="item-line"><b>${dShort(x.date)}</b><span class="item-name">${esc(x.nickname)}</span>${shopGate(x.shop_code)}</div>
-        <div class="item-sub">กะ ${hm(x.start)}–${hm(x.end)} ไม่ได้ลงเวลาเข้างาน</div>
-        <div class="row-btns"><button class="btn danger" type="button" data-act="absent" data-v="recorded" data-pid="${esc(x.person_id)}" data-date="${x.date}">ขาด ไม่แจ้ง</button>
-          <button class="btn" type="button" data-act="absent" data-v="excused" data-pid="${esc(x.person_id)}" data-date="${x.date}">แจ้งแล้ว / ลา</button></div></div></li>`).join('');
-    const filters = [['all', 'ทั้งหมด'], ['close_early', CAT.close_early], ['late', CAT.late], ['absent', 'ขาดงาน'], ['other', CAT.other]]
-      .map(([k, l]) => `<button type="button" data-act="notice-filter" data-f="${k}" aria-pressed="${S.noticeFilter === k}">${l}</button>`).join('');
-    const evs = (r.events || []).filter((e) => S.noticeFilter === 'all' || e.category === S.noticeFilter);
-    const opts = monthsBack(12).map((m) => `<option value="${m}"${m === S.noticeMonth ? ' selected' : ''}>${monthLabel(m)}</option>`).join('');
-    const lv = S.leaves || {}, lvPend = (lv.pending || []).map((l) => leaveItem(l, 'adm')).join('');
+    const r = S.notices, lv = S.leaves || {};
+    const lvPend = lv.pending || [], abPend = r.pending || [];
+    /* waiting for a decision: leave requests + days with no check-in */
+    const absCard = (x) => `<section class="panel dcard" aria-label="ขาดงาน ${esc(x.nickname)}"><div class="dc-head">${icCircle('alert', 'bad')}
+        <div class="dc-who"><span class="dc-k t-bad">ไม่ได้ลงเวลาเข้างาน</span><b>${esc(x.nickname)}${x.shop_code ? ` · ร้าน ${esc(x.shop_code)}` : ''}</b></div></div>
+      <div class="dc-body"><span><b>${dShort(x.date)}</b> · กะ <span class="num">${hm(x.start)}–${hm(x.end)}</span></span></div>
+      <div class="dc-btns"><button class="btn danger" type="button" data-act="absent" data-v="recorded" data-pid="${esc(x.person_id)}" data-date="${x.date}">ขาด ไม่แจ้ง</button>
+        <button class="btn" type="button" data-act="absent" data-v="excused" data-pid="${esc(x.person_id)}" data-date="${x.date}">แจ้งแล้ว / ลา</button></div></section>`;
+    const nDec = lvPend.length + abPend.length;
+    const decide = nDec ? `<h2 class="sec-h">รอตัดสินใจ ${countBadge(nDec)}</h2><div class="shop-grid">${lvPend.map(leaveCard).join('')}${abPend.map(absCard).join('')}</div>` : '';
     const lvRecent = (lv.recent || []).map((l) => leaveItem(l, 'adm')).join('');
+    /* this month's notes: month arrows (12 months back) and filters with counts */
+    const months = monthsBack(12), i = months.indexOf(S.noticeMonth);
+    const older = i >= 0 && i < months.length - 1 ? months[i + 1] : '', newer = i > 0 ? months[i - 1] : '';
+    const monthNav = `<div class="panel month-nav">
+        <button class="icon-btn" type="button" data-act="notice-go" data-m="${older}" aria-label="เดือนก่อน"${older ? '' : ' disabled'}>‹</button>
+        <div class="month-mid">${S.noticeMonth === months[0] ? '<span class="k">เดือนนี้</span>' : ''}<strong>${monthLabel(S.noticeMonth)}</strong></div>
+        <button class="icon-btn" type="button" data-act="notice-go" data-m="${newer}" aria-label="เดือนถัดไป"${newer ? '' : ' disabled'}>›</button></div>`;
+    const all = r.events || [];
+    const cnt = (k) => (k === 'all' ? all.length : all.filter((e) => e.category === k).length);
+    const filters = [['all', 'ทั้งหมด'], ['late', CAT.late], ['close_early', CAT.close_early], ['absent', 'ขาดงาน'], ['other', CAT.other]]
+      .map(([k, l]) => `<button type="button" data-act="notice-filter" data-f="${k}" aria-pressed="${S.noticeFilter === k}">${l} ${cnt(k)}</button>`).join('');
+    const evs = all.filter((e) => S.noticeFilter === 'all' || e.category === S.noticeFilter);
     return `<div class="stack">
-      ${lvPend ? `<section class="panel"><div class="shop-head"><b class="t-warn">คำขอลา รออนุมัติ (${lv.pending.length})</b></div><ul class="list">${lvPend}</ul></section>` : ''}
-      ${lvRecent ? `<details class="panel"><summary class="shop-head" style="cursor:pointer"><b>การลาที่ตอบแล้ว (${lv.recent.length})</b><span class="note">60 วันล่าสุดและที่จะถึง</span></summary><ul class="list">${lvRecent}</ul></details>` : ''}
-      <div class="view-head"><h1 class="view-title">บันทึกความผิด</h1>
-        <button class="btn solid" type="button" data-act="notice-new">+ บันทึกความผิด</button></div>
-      ${pend ? `<section class="panel"><div class="shop-head"><b class="t-bad">ขาดงาน รอยืนยัน (${r.pending.length})</b></div><ul class="list">${pend}</ul></section>` : ''}
-      <div class="field"><label for="notice-month">เดือน</label><select id="notice-month">${opts}</select></div>
-      <div class="filters" role="group" aria-label="ประเภท">${filters}</div>
-      ${evs.length ? `<ul class="panel list">${evs.map((e) => eventItem(e)).join('')}</ul>` : '<p class="panel empty">ไม่มีรายการในเดือนนี้</p>'}
-      <p class="note">มาสาย และ ปิดร้านก่อนเวลา ระบบจับเองจากเวลาถ่ายรูปเทียบกับกะ เรื่องอื่นกด "+ บันทึกความผิด"</p></div>`;
+      <div class="view-head"><h1 class="view-title">บันทึก</h1>
+        <button class="btn solid" type="button" data-act="notice-new">${svg('plus', 20)}บันทึกความผิด</button></div>
+      ${decide}
+      ${lvRecent ? `<details class="panel fold"><summary><b>การลาที่ตอบแล้ว (${lv.recent.length})</b><span class="note">60 วันล่าสุดและที่จะถึง</span></summary><ul class="list">${lvRecent}</ul></details>` : ''}
+      <h2 class="sec-h">ความผิด${S.noticeMonth === months[0] ? 'เดือนนี้' : 'รายเดือน'}</h2>
+      ${monthNav}
+      <div class="filters wrap" role="group" aria-label="ประเภท">${filters}</div>
+      ${evs.length ? `<ul class="panel list">${evs.map((e) => eventItem(e)).join('')}</ul>` : `<p class="panel empty">${all.length ? 'ไม่มีรายการประเภทนี้' : 'ไม่มีรายการในเดือนนี้'}</p>`}
+      <p class="note">มาสาย และ ปิดร้านก่อนเวลา ระบบจับเองจากเวลาถ่ายรูปเทียบกับกะ เรื่องอื่นกด "บันทึกความผิด"</p></div>`;
   },
 };
 async function ensurePeople() {
@@ -1350,16 +1410,28 @@ VIEWS.adm_summary = {
       <td class="r">${x.worked}</td><td class="r">${x.leave_n || 0}</td><td class="r">${cell(x.early_n, x.early_m)}</td>
       <td class="r">${x.absent_n ? `<b class="t-bad">${x.absent_n}</b>` : '0'}${x.pending_absent ? `<span class="k">รอยืนยัน ${x.pending_absent}</span>` : ''}</td>
       <td class="r">${x.other_n ? `<b class="t-bad">${x.other_n}</b>` : '0'}</td></tr>`).join('');
+    /* phones: one card per person (money on the right, 4 small cells below); wide screens keep the table */
+    const cards = rows.map((x) => {
+      const tags = [x.status === 'inactive' ? '<span class="tag">ลาออกแล้ว</span>' : '',
+        x.absent_n ? `<span class="tag bad">ขาด ${x.absent_n}</span>` : '', x.other_n ? `<span class="tag bad">อื่นๆ ${x.other_n}</span>` : '',
+        x.pending_absent ? `<span class="tag warn">รอยืนยันขาด ${x.pending_absent}</span>` : '', x.early_n ? `<span class="tag warn">ปิดก่อนเวลา ${x.early_n}</span>` : '',
+        x.leave_n ? `<span class="tag">ลา ${x.leave_n} วัน</span>` : ''].join('');
+      return `<li><button class="sum-card panel" type="button" data-act="person-open" data-id="${esc(x.person_id)}" data-back="summary">
+        <span class="sc-top">${avatar(x)}<span class="sc-name"><b>${esc(x.nickname)}</b>${shopGate(x.shop_code)}${tags}</span>
+          <span class="sc-money"><b class="${x.extra_baht ? 't-ok' : 't-muted'}">${x.extra_baht ? '+' : ''}${fmtN(x.extra_baht)}</b><span>บาท</span></span></span>
+        <span class="sc-cells"><span class="${lateCls(x.late_m)}"><b>${fmtN(x.late_m)}</b>${x.late_m ? 'นาทีสาย' : 'ไม่สาย'}</span>
+          <span><b>${x.ot_n || 0}</b>OT</span><span><b>${x.r2_n || 0}</b>2 รอบ</span><span><b>${x.worked || 0}</b>วันทำงาน</span></span></button></li>`;
+    }).join('');
+    const tbox = (ic, v, k, cls) => `<div class="tbox">${ic}<b class="${v ? cls : ''}">${fmtN(v)}</b><span>${k}</span></div>`;
     const sorts = [['shop', 'ตามร้าน'], ['late', 'สายมากสุด'], ['money', 'เงินเพิ่มมากสุด']]
       .map(([k, l]) => `<button type="button" data-act="sum-sort" data-s="${k}" aria-pressed="${sort === k}">${l}</button>`).join('');
     return `<div class="stack"><div><h1 class="view-title">สรุปท้ายเดือน</h1><p class="note">นาทีสาย OT และเงินเพิ่มของทุกคน แตะชื่อเพื่อดูรายวัน</p></div>
       <div class="field"><label for="sum-period">ช่วงเวลา</label>${periodSelect('sum-period', S.period)}</div>
-      ${rows.length ? `<div class="panel stats" style="grid-template-columns:repeat(3,1fr)">
-          <div class="stat ${tot.late ? 'warn' : ''}"><span class="stat-v">${fmtN(tot.late)}</span><span class="stat-k">นาทีสายรวม</span></div>
-          <div class="stat ${tot.ot ? 'ok' : ''}"><span class="stat-v">${fmtN(tot.ot)}</span><span class="stat-k">OT รวม (ครั้ง)</span></div>
-          <div class="stat ${tot.money ? 'ok' : ''}"><span class="stat-v">${fmtN(tot.money)}</span><span class="stat-k">เงินเพิ่มรวม (บาท)</span></div></div>
-        <div class="filters" role="group" aria-label="เรียง">${sorts}</div>
-        <div class="panel table-scroll"><table class="t sum"><thead><tr><th>ชื่อ</th><th class="r">สายรวม</th><th class="r">เงินเพิ่ม (บาท)</th><th class="r">OT (ครั้ง)</th><th class="r">2 รอบ (วัน)</th><th class="r">ทำงาน (วัน)</th><th class="r">ลา (วัน)</th><th class="r">ปิดก่อนเวลา</th><th class="r">ขาดไม่แจ้ง</th><th class="r">อื่นๆ</th></tr></thead><tbody>${body}</tbody></table></div>
+      ${rows.length ? `<section class="tbox-grid" aria-label="รวมทุกคน">${tbox('<span class="coin md" aria-hidden="true">฿</span>', tot.money, 'เงินเพิ่มรวม (บาท)', 't-ok')}
+          ${tbox(icCircle('otplus'), tot.ot, 'OT รวม (ครั้ง)', '')}${tbox(icCircle('clock', 'warn'), tot.late, 'นาทีสายรวม', 't-warn')}</section>
+        <div class="filters wrap" role="group" aria-label="เรียง">${sorts}</div>
+        <ul class="sum-cards">${cards}</ul>
+        <div class="panel table-scroll sum-table"><table class="t sum"><thead><tr><th>ชื่อ</th><th class="r">สายรวม</th><th class="r">เงินเพิ่ม (บาท)</th><th class="r">OT (ครั้ง)</th><th class="r">2 รอบ (วัน)</th><th class="r">ทำงาน (วัน)</th><th class="r">ลา (วัน)</th><th class="r">ปิดก่อนเวลา</th><th class="r">ขาดไม่แจ้ง</th><th class="r">อื่นๆ</th></tr></thead><tbody>${body}</tbody></table></div>
         <p class="note">เงินเพิ่ม = เงิน OT + เงินมา 2 รอบ ยังไม่รวมเงินเดือน · นาทีสายไม่นับวันที่หัวหน้าอนุญาต </p>
         <p class="legend">สีนาทีสาย: <span class="late-pill lt0">ไม่สาย</span> <span class="late-pill lt1">1–15</span> <span class="late-pill lt2">16–30</span> <span class="late-pill lt3">31–60</span> <span class="late-pill lt4">เกิน 60 นาที</span></p>`
         : '<p class="panel empty">ยังไม่มีข้อมูลในช่วงนี้</p>'}
@@ -1428,26 +1500,28 @@ VIEWS.adm_people = {
   render() {
     const all = S.peopleData.people || [];
     const pending = all.filter((p) => p.status === 'pending'), active = all.filter((p) => p.status === 'active'), inactive = all.filter((p) => p.status === 'inactive');
-    const row = (p) => `<li><button class="item" type="button" data-act="person-edit" data-id="${esc(p.id)}">${avatar(p)}<span class="item-main">
+    const appSt = (p) => (p.linked ? `<span class="pst ok">${svg('tick', 18)}เปิดแอปแล้ว</span>` : `<span class="pst warn">${svg('alert', 18)}ยังไม่ได้เปิดแอป</span>`);
+    const row = (p) => `<li><button class="item go" type="button" data-act="person-edit" data-id="${esc(p.id)}">${avatar(p)}<span class="item-main">
       <span class="item-line"><span class="item-name">${esc(p.nickname)}</span>${p.role === 'admin' ? '<span class="tag">หัวหน้า</span>' : ''}${p.can_schedule ? '<span class="tag">ผู้จัดการ</span>' : ''}${p.is_test ? '<span class="tag test">ทดสอบ</span>' : ''}${p.is_demo ? '<span class="tag test">ตัวอย่าง</span>' : ''}</span>
-      <span class="item-sub num">${esc(fmtPhone(p.phone))}</span><span class="item-sub">${p.linked ? 'เปิดแอปแล้ว' : 'ยังไม่ได้เปิดแอป'}</span></span></button></li>`;
-    const pend = pending.map((p) => `<li class="ev" style="grid-template-columns:auto 1fr">${avatar(p, 'lg')}<div class="item-main">
+      <span class="item-line">${appSt(p)}<span class="item-sub num">${esc(fmtPhone(p.phone))}</span></span></span><span class="go-mark" aria-hidden="true">›</span></button></li>`;
+    /* new sign-ups: big photo, details, approve / reject side by side */
+    const pend = pending.map((p) => `<section class="panel dcard" aria-label="รออนุมัติ ${esc(p.nickname)}"><div class="pend-top">${avatar(p, 'xl')}<div class="item-main">
         <div class="item-line"><span class="item-name">${esc(p.nickname)}</span>${shopGate(p.shop_code)}</div>
         ${p.full_name ? `<span class="item-sub">${esc(p.full_name)}</span>` : ''}<span class="item-sub num">${esc(fmtPhone(p.phone))}</span>
-        ${p.line_name ? `<span class="item-sub">LINE: ${esc(p.line_name)}</span>` : ''}
-        <div class="row-btns"><button class="btn good" type="button" data-act="approve" data-id="${esc(p.id)}">อนุมัติ</button>
-          <button class="btn danger" type="button" data-act="reject" data-id="${esc(p.id)}" data-confirm="แตะอีกครั้งเพื่อไม่อนุมัติ">ไม่อนุมัติ</button></div></div></li>`).join('');
+        ${p.line_name ? `<span class="item-sub">LINE: ${esc(p.line_name)}</span>` : ''}</div></div>
+      <div class="dc-btns"><button class="btn good" type="button" data-act="approve" data-id="${esc(p.id)}">อนุมัติ</button>
+        <button class="btn danger" type="button" data-act="reject" data-id="${esc(p.id)}" data-confirm="แตะอีกครั้งเพื่อไม่อนุมัติ">ไม่อนุมัติ</button></div></section>`).join('');
     const groups = S.shops.map((s) => {
       const list = active.filter((p) => p.shop_code === s.code);
       return list.length ? `<section class="panel"><div class="shop-head">${shopGate(s.code)}<span class="note">${list.length} คน</span></div><ul class="list">${list.map(row).join('')}</ul></section>` : '';
     }).join('');
     const noShop = active.filter((p) => !p.shop_code);
-    return `<div class="stack"><div class="view-head"><h1 class="view-title">พนักงาน</h1><button class="btn solid" type="button" data-act="person-new">+ เพิ่มพนักงาน</button></div>
-      ${pend ? `<section class="panel"><div class="shop-head"><b class="t-warn">รออนุมัติ (${pending.length})</b></div><ul class="list">${pend}</ul></section>` : ''}
+    return `<div class="stack"><div class="view-head"><h1 class="view-title">พนักงาน</h1><button class="btn solid" type="button" data-act="person-new">${svg('plus', 20)}เพิ่มพนักงาน</button></div>
+      ${pend ? `<h2 class="sec-h">รออนุมัติ ${countBadge(pending.length)}</h2><div class="shop-grid">${pend}</div>` : ''}
       ${groups ? `<div class="shop-grid">${groups}</div>` : ''}
-      ${noShop.length ? `<section class="panel"><div class="shop-head"><b>หัวหน้า / ไม่มีร้านประจำ</b></div><ul class="list">${noShop.map(row).join('')}</ul></section>` : ''}
-      ${inactive.length ? `<details class="panel"><summary class="shop-head" style="cursor:pointer"><b>ปิดใช้งานแล้ว (${inactive.length})</b></summary><ul class="list">${inactive.map(row).join('')}</ul></details>` : ''}
-      <p class="note">พนักงานใหม่เปิดแอปแล้วลงทะเบียนเองได้ หรือกด "+ เพิ่มพนักงาน" ใส่ชื่อกับเบอร์ไว้ก่อน แล้วให้พนักงานเปิดแอปกรอกเบอร์เดียวกัน</p></div>`;
+      ${noShop.length ? `<details class="panel fold"><summary><b>หัวหน้า / ไม่มีร้านประจำ (${noShop.length})</b></summary><ul class="list">${noShop.map(row).join('')}</ul></details>` : ''}
+      ${inactive.length ? `<details class="panel fold"><summary><b>ปิดใช้งานแล้ว (${inactive.length})</b></summary><ul class="list">${inactive.map(row).join('')}</ul></details>` : ''}
+      <p class="note">พนักงานใหม่เปิดแอปแล้วลงทะเบียนเองได้ หรือกด "เพิ่มพนักงาน" ใส่ชื่อกับเบอร์ไว้ก่อน แล้วให้พนักงานเปิดแอปกรอกเบอร์เดียวกัน</p></div>`;
   },
 };
 function openPersonEdit(id) {
@@ -1526,7 +1600,7 @@ const ACT = {
     try {
       S.reg.face = await makePhoto(shot.blob, []);
       $('#rg-face-prev').innerHTML = `<img src="${S.reg.face}" alt="">`;
-      el.textContent = 'ถ่ายใหม่';
+      el.innerHTML = `${svg('cam', 22)}ถ่ายใหม่`;
     } catch (e) { toast('ถ่ายรูปไม่สำเร็จ ลองถ่ายใหม่'); }
   },
   'reg-back': () => renderPhone(''),
@@ -1774,6 +1848,7 @@ const ACT = {
     } catch (e) { toast(e.message); }
   }),
   'notice-filter': (el) => { S.noticeFilter = el.dataset.f; paint(); },
+  'notice-go': (el) => { if (!el.dataset.m) return; S.noticeMonth = el.dataset.m; load(); },
   'notice-new': (el) => openNoticeForm({ pid: el.dataset.pid || '', date: el.dataset.date || '' }),
   'nf-cat': (el) => {
     S.form.cat = el.dataset.c;
@@ -1898,7 +1973,6 @@ document.addEventListener('change', (ev) => {
   const id = ev.target.id, v = ev.target.value;
   if (id === 'hist-month') { S.histMonth = v; load(); }
   else if (id === 'lv-from') { const t = $('#lv-to'); if (t) { t.min = v; if (!t.value || t.value < v) t.value = v; } }
-  else if (id === 'notice-month') { S.noticeMonth = v; load(); }
   else if (id === 'sum-period') { S.period = v; load(); }
   else if (id === 'person-period') { S.personPeriod = v; load(); }
   else if (id === 'ri-person' && S.edit) {
