@@ -532,6 +532,113 @@ table.week .shift-btn{min-width:0;width:100%;padding:4px 6px;font-size:.9rem;pos
 .leave-head .k b{color:var(--ink)}
 .tip{display:flex;gap:8px;align-items:flex-start;font-size:.9rem;color:var(--muted);line-height:1.5}
 .tip svg{flex:none;margin-top:2px}
+/* head pages + register (redesign) */
+.ic-circle{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--action-soft);color:var(--action)}
+.ic-circle.ok{background:var(--ok-bg);color:var(--ok)}
+.ic-circle.warn{background:var(--warn-bg);color:var(--warn)}
+.ic-circle.bad{background:var(--bad-bg);color:var(--bad)}
+.ic-circle.idle{background:var(--idle-bg);color:var(--muted)}
+.count-badge{display:inline-grid;place-items:center;min-width:1.55rem;height:1.55rem;padding:0 6px;border-radius:999px;background:var(--bad);color:var(--bad-ink);font-size:.88rem;font-weight:700;vertical-align:2px;margin-left:4px}
+.sec-h{font-size:1.18rem;font-weight:700;line-height:1.3;margin-top:4px}
+.datenav.panel{padding:6px}
+section.panel > .shop-head:first-child{background:var(--surface-2);border-radius:13px 13px 0 0}
+/* to-do rows (today), empty stretches (roster) */
+.todo-list{display:grid;gap:8px}
+.todo{appearance:none;width:100%;min-height:60px;display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+div.todo{cursor:default}
+.todo.warn{background:var(--warn-bg);border-color:transparent}
+.todo.bad{background:var(--bad-bg);border-color:transparent}
+.todo.ok{background:var(--ok-bg);border-color:transparent}
+.todo.warn .ic-circle,.todo.bad .ic-circle,.todo.ok .ic-circle{background:var(--surface)}
+.todo.warn .ic-circle,.todo.warn .todo-go,.todo.warn .todo-s{color:var(--warn)}
+.todo.bad .ic-circle,.todo.bad .todo-go,.todo.bad .todo-s{color:var(--bad)}
+.todo.ok .ic-circle,.todo.ok .todo-go,.todo.ok .todo-s{color:var(--ok)}
+.todo-t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.todo-s{font-size:.88rem;color:var(--muted)}
+.todo.warn .todo-s,.todo.bad .todo-s,.todo.ok .todo-s{font-weight:600}
+.todo-go{font-size:1.55rem;line-height:1;color:var(--muted);flex:none}
+.todo:focus-visible{outline:3px solid var(--action);outline-offset:2px}
+/* overview boxes (today) */
+.sbox-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;align-items:center;gap:10px;min-width:0}
+.sbox-t{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.sbox-t b{font-size:1.76rem;font-variant-numeric:tabular-nums}
+.sbox-t span{font-size:.88rem;color:var(--muted);line-height:1.3}
+.sbox.ok b{color:var(--ok)} .sbox.warn b{color:var(--warn)} .sbox.bad b{color:var(--bad)}
+.sbox.zero b{color:var(--muted)}
+/* decision cards (leave, absence, new staff) */
+.dcard{padding:14px;display:grid;gap:10px;align-content:start}
+.dc-head{display:flex;align-items:center;gap:10px}
+.dc-who{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.dc-k{font-size:.88rem;font-weight:700;color:var(--action)}
+.dc-k.t-bad{color:var(--bad)}
+.dc-who b{font-size:1.06rem}
+.dc-body{display:flex;flex-direction:column;line-height:1.45}
+.dc-btns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.dc-btns .btn{min-height:52px;width:100%}
+.pend-top{display:flex;gap:14px;align-items:flex-start}
+.avatar.xl{width:96px;height:96px;font-size:2.2rem;border-radius:14px}
+/* fold-away groups */
+details.fold > summary{list-style:none;display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;min-height:56px;padding:10px 16px;cursor:pointer}
+details.fold > summary::-webkit-details-marker{display:none}
+details.fold > summary::after{content:"›";margin-left:auto;font-size:1.55rem;line-height:1;color:var(--muted);transition:transform .15s}
+details.fold[open] > summary::after{transform:rotate(90deg)}
+details.fold[open] > summary{border-bottom:1px solid var(--line)}
+details.fold > summary:focus-visible{outline:3px solid var(--action);outline-offset:-3px;border-radius:14px}
+/* notes list */
+.filters.wrap{flex-wrap:wrap;overflow:visible}
+.ev.ev-ic{grid-template-columns:auto minmax(0,1fr) auto;align-items:start}
+.ev-line{line-height:1.4}
+.ev-detail{font-size:.94rem}
+.ev .item-line.item-sub{gap:4px 8px}
+/* month summary: totals + person cards */
+.tbox-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;min-width:0}
+.tbox .ic-circle,.coin.md{width:36px;height:36px}
+.coin.md{font-size:1.06rem;box-shadow:none}
+.tbox b{font-size:1.53rem;line-height:1.2;font-variant-numeric:tabular-nums}
+.tbox > span:last-child{font-size:.82rem;color:var(--muted);line-height:1.3}
+.sum-cards{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.sum-card{appearance:none;width:100%;text-align:left;padding:12px 14px;font:inherit;color:var(--ink);display:flex;flex-direction:column;gap:10px;cursor:pointer}
+.sum-card:focus-visible{outline:3px solid var(--action);outline-offset:2px}
+.sc-top{display:flex;align-items:center;gap:10px;width:100%}
+.sc-top .avatar{width:44px;height:44px;font-size:1.1rem}
+.sc-name{flex:1;min-width:0;display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap}
+.sc-name b{font-size:1.06rem}
+.sc-name .gate{height:26px;min-width:40px;font-size:.88rem}
+.sc-money{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;flex:none}
+.sc-money b{font-size:1.3rem;font-variant-numeric:tabular-nums}
+.sc-money span{font-size:.76rem;color:var(--muted)}
+.sc-cells{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;width:100%;font-size:.82rem;text-align:center}
+.sc-cells > span{border-radius:8px;padding:4px 2px;background:var(--surface-2);line-height:1.3}
+.sc-cells b{display:block;font-size:.94rem;font-variant-numeric:tabular-nums}
+.sum-table{display:none}
+.tag.bad{color:var(--bad);background:var(--bad-bg)}
+/* staff rows */
+.item.go{align-items:center}
+.go-mark{font-size:1.55rem;line-height:1;color:var(--muted);flex:none}
+.pst{display:inline-flex;align-items:center;gap:4px;font-size:.94rem;font-weight:600}
+.pst.ok{color:var(--ok)} .pst.warn{color:var(--warn)}
+/* register */
+.reg-head{display:flex;align-items:center;gap:12px}
+.reg-head .logo{width:56px;height:56px}
+.reg-head > div{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:-6px}
+.steps span{height:6px;border-radius:999px;background:var(--idle-bg)}
+.steps span.on{background:var(--action)}
+.shopgrid.big button{font-size:1.18rem}
+.shopgrid.big button[aria-pressed="true"]{border-width:2px}
+.face-ph{width:84px;height:84px;border-radius:50%;border:2px dashed var(--rule);background:var(--surface-2);color:var(--muted);display:grid;place-items:center;flex:none;overflow:hidden}
+.face-ph img{width:100%;height:100%;object-fit:cover;display:block}
+.face-pick .btn{flex:1;min-height:52px}
+.next-box{display:flex;gap:12px;align-items:flex-start;padding:14px 16px}
+.next-box > div{display:flex;flex-direction:column;line-height:1.45}
+@media (min-width:1000px){
+  #app.admin .todo-list,#app.admin .sbox-grid{max-width:760px;width:100%;margin-inline:auto}
+  #app.admin .sbox-grid{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+  #app.admin .sum-cards{display:none}
+  #app.admin .sum-table{display:block}
+}
 </style>
 </head>
 <body>
