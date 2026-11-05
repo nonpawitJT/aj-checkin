@@ -522,7 +522,7 @@ function slot(kind, d) {
 }
 function todayHint(d) {
   if (!d.has_shift || d.off || !d.start) return '';
-  const now = new Date(), n = now.getHours() * 60 + now.getMinutes();
+  const now = thaiParts(serverNow()), n = now.h * 60 + now.m;
   if (!d.in) {
     const diff = n - toMin(d.start);
     return diff > 0 ? `<span class="t-warn">เลยเวลาเข้ากะมา ${durText(diff)}</span>` : diff === 0 ? 'ถึงเวลาเข้ากะพอดี' : `อีก ${durText(-diff)} ถึงเวลาเข้ากะ`;
@@ -664,14 +664,14 @@ VIEWS.adm_board = {
   },
 };
 function openRelease(code) {
-  const now = new Date();
+  const now = thaiParts(serverNow());
   S.edit = { shops: new Set(code ? [code] : []) };
   const released = new Set((S.board.releases || []).map((x) => x.shop));
   sheet(`<h3>ให้ร้านกลับก่อนเวลา</h3><p class="note">${dLong(S.board.date)} · พนักงานร้านที่เลือก ถ่ายรูปออกงานหลังเวลานี้ จะไม่ถูกนับว่าออกก่อนเวลา</p>
     <div class="field"><span class="lbl">ร้าน <span class="note">เลือกได้หลายร้าน</span></span>
       <div class="shopgrid" id="rl-shops">${S.shops.map((s) => `<button type="button" data-act="rl-shop" data-s="${esc(s.code)}">${esc(s.code)}${released.has(s.code) ? '<small>แล้ว</small>' : ''}</button>`).join('')}</div>
       <button class="btn quiet" type="button" data-act="rl-all" style="justify-self:start">เลือกทุกร้าน</button></div>
-    <div class="grid2"><div class="field"><label for="rl-from">กลับได้ตั้งแต่</label><input type="time" id="rl-from" value="${pad(now.getHours())}:${pad(now.getMinutes())}"></div>
+    <div class="grid2"><div class="field"><label for="rl-from">กลับได้ตั้งแต่</label><input type="time" id="rl-from" value="${pad(now.h)}:${pad(now.m)}"></div>
       <div class="field"><label for="rl-note">เหตุผล</label><input type="text" id="rl-note" maxlength="60" value="ลูกค้าหมดแล้ว"></div></div>
     <p class="err" id="sheet-err" role="alert"></p>
     <div class="sheet-actions"><span class="spacer"></span><button class="btn" type="button" data-act="close">ยกเลิก</button>
