@@ -199,7 +199,7 @@ function navItems() {
 }
 function shell(content) {
   const p = S.me, admin = S.mode === 'admin';
-  const sub = admin ? `หัวหน้า · ${esc(p.nickname)}` : `${esc(p.nickname)} · ร้าน ${esc(p.shop_code || '-')}`;
+  const sub = admin ? `Boss : ${esc(p.nickname)}` : `${esc(p.nickname)} · ร้าน ${esc(p.shop_code || '-')}`;
   const extra = p.role === 'admin' && p.shop_code ? `<button class="btn" type="button" data-act="mode">${admin ? 'ลงเวลาของฉัน' : 'หลังบ้าน'}</button>` : '';
   const cur = admin ? (S.adm === 'person' ? S.personBack : S.adm === 'plan' ? 'roster' : S.adm) : (S.tab === 'plan' ? 'roster' : S.tab);
   const nav = navItems().map(([k, label, ic]) => {
