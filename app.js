@@ -145,6 +145,7 @@ async function loadMe() {
   S.shops = r.shops || [];
   S.today = r.today;
   S.lineName = r.line_name || '';
+  S.pendingLink = !!r.pending_link; S.pendingNick = r.pending_nick || '';
   S.me = r.person;
   S.actingAs = !!r.acting_as;
   S.dev = !!r.dev;
@@ -155,7 +156,7 @@ let deepLink = null;
 try { deepLink = new URLSearchParams(location.search).get('tab'); } catch (e) { /* ignore */ }
 function route() {
   const p = S.me;
-  if (!p) return S.dev ? renderDevHome() : renderPhone('');
+  if (!p) return S.dev ? renderDevHome() : (S.pendingLink ? renderLinkPending() : renderPhone(''));
   if (p.status === 'pending') return renderPending();
   if (p.status === 'inactive') return renderInactive();
   if (p.role !== 'admin') S.mode = 'staff';
@@ -547,6 +548,11 @@ function renderPending() {
       <span class="note">อนุมัติแล้ว เปิดแอปนี้อีกครั้งเพื่อเริ่มลงเวลา</span></div></section>
     <button class="btn wide" type="button" data-act="reload-me">ตรวจสอบอีกครั้ง</button></div>`);
 }
+function renderLinkPending() {
+  bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">ส่งคำขอแล้ว</h1>
+    <p>${S.pendingNick ? `บัญชี <b>${esc(S.pendingNick)}</b> ` : ''}รอหัวหน้ายืนยันการเชื่อมบัญชี LINE นี้ก่อน เพื่อความปลอดภัย เมื่อหัวหน้ายืนยันแล้ว เปิดแอปอีกครั้งเพื่อเริ่มใช้งาน</p></div>
+    <button class="btn wide" type="button" data-act="reload-me">ตรวจสอบอีกครั้ง</button></div>`);
+}
 /* A developer account is not a staff record: it only opens the monitor and acts as other people from there. */
 function renderDevHome() {
   bare(`<div class="welcome center"><div class="hero">${LOGO_BIG}<h1 class="view-title">บัญชีแอดมิน</h1>
@@ -827,6 +833,7 @@ VIEWS.adm_board = {
     if (r.pending_leaves) todo.push(todoRow({ attrs: 'data-act="tab" data-t="notices"', icon: 'cal', title: `คำขอลา ${r.pending_leaves} รายการ`, sub: 'รออนุมัติ · แตะเพื่อดู' }));
     if (r.pending_resigns) todo.push(todoRow({ attrs: 'data-act="tab" data-t="notices"', cls: 'warn', icon: 'out', title: `แจ้งลาออก ${r.pending_resigns} คน`, sub: 'แตะเพื่อรับทราบ' }));
     if (r.pending_people) todo.push(todoRow({ attrs: 'data-act="tab" data-t="people"', icon: 'person', title: `พนักงานใหม่ รออนุมัติ ${r.pending_people} คน`, sub: 'แตะเพื่อดู' }));
+    if (r.link_requests) todo.push(todoRow({ attrs: 'data-act="tab" data-t="people"', cls: 'warn', icon: 'person', title: `คำขอเชื่อม LINE รอยืนยัน ${r.link_requests} รายการ`, sub: 'แตะเพื่อยืนยัน' }));
     const todoHTML = todo.length || rtRow ? `<section class="todo-list" aria-label="ต้องทำ">${todo.length ? `<h2 class="sec-h">ต้องทำ ${countBadge(todo.length)}</h2>` : ''}${todo.join('')}${rtRow}</section>` : '';
     const rels = r.releases || [], relOf = (code) => rels.find((x) => x.shop === code);
     const canRelease = date <= today;
@@ -1536,7 +1543,7 @@ function openPerson(id, back) {
 VIEWS.adm_people = {
   async load() {
     S.peopleData = await api('adm_people');
-    S.badges.people = (S.peopleData.people || []).filter((p) => p.status === 'pending').length;
+    S.badges.people = (S.peopleData.people || []).filter((p) => p.status === 'pending' || p.has_pending).length;
   },
   render() {
     const all = S.peopleData.people || [];
@@ -1552,12 +1559,19 @@ VIEWS.adm_people = {
         ${p.line_name ? `<span class="item-sub">LINE: ${esc(p.line_name)}</span>` : ''}</div></div>
       <div class="dc-btns"><button class="btn good" type="button" data-act="approve" data-id="${esc(p.id)}">อนุมัติ</button>
         <button class="btn danger" type="button" data-act="reject" data-id="${esc(p.id)}" data-confirm="แตะอีกครั้งเพื่อไม่อนุมัติ">ไม่อนุมัติ</button></div></section>`).join('');
+    const linkReq = all.filter((p) => p.has_pending);
+    const linkCard = (p) => `<section class="panel dcard" aria-label="คำขอเชื่อม LINE ${esc(p.nickname)}"><div class="pend-top">${p.pending_picture ? `<span class="avatar xl"><img src="${esc(p.pending_picture)}" alt=""></span>` : avatar(p, 'xl')}<div class="item-main">
+        <div class="item-line"><span class="item-name">${esc(p.nickname)}</span>${shopGate(p.shop_code)}${p.role === 'admin' ? '<span class="tag">หัวหน้า</span>' : ''}</div>
+        <span class="item-sub num">${esc(fmtPhone(p.phone))}</span><span class="item-sub">ขอเชื่อมจาก LINE: ${esc(p.pending_name || '-')}</span></div></div>
+      <div class="dc-btns"><button class="btn good" type="button" data-act="link-approve" data-id="${esc(p.id)}">ยืนยันการเชื่อม</button>
+        <button class="btn danger" type="button" data-act="link-reject" data-id="${esc(p.id)}" data-confirm="แตะอีกครั้งเพื่อปฏิเสธ">ปฏิเสธ</button></div></section>`;
     const groups = S.shops.map((s) => {
       const list = active.filter((p) => p.shop_code === s.code);
       return list.length ? `<section class="panel"><div class="shop-head">${shopGate(s.code)}<span class="note">${list.length} คน</span></div><ul class="list">${list.map(row).join('')}</ul></section>` : '';
     }).join('');
     const noShop = active.filter((p) => !p.shop_code);
     return `<div class="stack"><div class="view-head"><h1 class="view-title">พนักงาน</h1><button class="btn solid" type="button" data-act="person-new">${svg('plus', 20)}เพิ่มพนักงาน</button></div>
+      ${linkReq.length ? `<h2 class="sec-h">คำขอเชื่อม LINE ${countBadge(linkReq.length)}</h2><div class="shop-grid">${linkReq.map(linkCard).join('')}</div>` : ''}
       ${pend ? `<h2 class="sec-h">รออนุมัติ ${countBadge(pending.length)}</h2><div class="shop-grid">${pend}</div>` : ''}
       ${groups ? `<div class="shop-grid">${groups}</div>` : ''}
       ${noShop.length ? `<details class="panel fold"><summary><b>หัวหน้า / ไม่มีร้านประจำ (${noShop.length})</b></summary><ul class="list">${noShop.map(row).join('')}</ul></details>` : ''}
@@ -1578,10 +1592,11 @@ function openPersonEdit(id) {
       <div class="field"><label for="pe-shop">ร้านประจำ</label><select id="pe-shop">${shopOpts}</select></div></div>
     <div class="field"><label for="pe-full">ชื่อ-นามสกุล (ไม่ใส่ก็ได้)</label><input type="text" id="pe-full" maxlength="60" value="${esc(p ? p.full_name || '' : '')}"></div>
     <div class="field"><label for="pe-phone">เบอร์โทร (ใช้เข้าแอป)</label><input type="tel" id="pe-phone" inputmode="numeric" maxlength="12" value="${esc(p ? fmtPhone(p.phone) : '')}" placeholder="08x-xxx-xxxx"></div>
-    <div class="grid2"><div class="field"><label for="pe-role">สิทธิ์</label><select id="pe-role"${isMe ? ' disabled' : ''}><option value="staff">พนักงาน</option><option value="admin"${p && p.role === 'admin' ? ' selected' : ''}>หัวหน้า</option></select></div>
-      <div class="field"><label for="pe-status">สถานะ</label><select id="pe-status"${isMe || !p ? ' disabled' : ''}><option value="active">ทำงานอยู่</option><option value="inactive"${p && p.status === 'inactive' ? ' selected' : ''}>ปิดใช้งาน (ลาออก)</option>${p && p.status === 'pending' ? '<option value="pending" selected>รออนุมัติ</option>' : ''}</select></div></div>
+    <div class="grid2"><div class="field"><label for="pe-role">สิทธิ์</label><select id="pe-role"${isMe || (p && p.role === 'admin') ? ' disabled' : ''}><option value="staff">พนักงาน</option>${p && p.role === 'admin' ? '<option value="admin" selected>หัวหน้า</option>' : ''}</select></div>
+      <div class="field"><label for="pe-status">สถานะ</label><select id="pe-status"${isMe || !p || (p && p.role === 'admin') ? ' disabled' : ''}><option value="active">ทำงานอยู่</option><option value="inactive"${p && p.status === 'inactive' ? ' selected' : ''}>ปิดใช้งาน (ลาออก)</option>${p && p.status === 'pending' ? '<option value="pending" selected>รออนุมัติ</option>' : ''}</select></div></div>
     <label class="check"><input type="checkbox" id="pe-sched"${p && p.can_schedule ? ' checked' : ''}> เป็นผู้จัดการ (จัดเวรได้ เช่น พี่ไหม)</label>
     ${p ? `<p class="note">${p.linked ? `ผูก LINE แล้ว${p.line_name ? ` (${esc(p.line_name)})` : ''}` : 'ยังไม่ได้เปิดแอป ให้พนักงานเปิดแอปแล้วกรอกเบอร์นี้'}</p>` : '<p class="note">เพิ่มแล้วให้พนักงานเปิดแอปใน LINE แล้วกรอกเบอร์นี้ ระบบจะผูกให้เอง ไม่ต้องรออนุมัติ</p>'}
+    ${p && p.has_pending ? `<div class="panel" style="padding:12px;margin-top:8px"><div class="item-line"><b class="t-warn">มีคำขอเชื่อม LINE นี้</b></div><p class="note" style="margin:6px 0">จาก: ${esc(p.pending_name || '-')}</p><div class="row-btns"><button class="btn good" type="button" data-act="link-approve" data-id="${esc(p.id)}">ยืนยันการเชื่อม</button><button class="btn danger" type="button" data-act="link-reject" data-id="${esc(p.id)}" data-confirm="แตะอีกครั้งเพื่อปฏิเสธ">ปฏิเสธ</button></div></div>` : ''}
     <p class="err" id="sheet-err" role="alert"></p>
     <div class="sheet-actions">${p && p.linked && !isMe ? '<button class="btn quiet" type="button" data-act="unlink" data-confirm="แตะอีกครั้งเพื่อยกเลิก">ยกเลิกการผูก LINE</button>' : ''}
       ${p ? `<button class="btn quiet" type="button" data-act="person-open" data-id="${esc(p.id)}" data-back="people">ดูประวัติ</button>` : ''}<span class="spacer"></span>
@@ -1967,6 +1982,12 @@ const ACT = {
     if (data.role === 'staff' && !data.shop_code) return sheetErr('กรุณาเลือกร้านประจำ');
     try { await api('adm_person_save', data); closeSheet(); toast(id ? 'บันทึกแล้ว' : `เพิ่ม ${data.nickname} แล้ว`); load(); } catch (e) { sheetErr(e.message); }
   }),
+  'link-approve': (el) => busy(el, async () => {
+    try { await api('adm_link_approve', { id: el.dataset.id }); toast('ยืนยันการเชื่อม LINE แล้ว'); load(); } catch (e) { toast(e.message); }
+  }),
+  'link-reject': (el) => busy(el, async () => {
+    try { await api('adm_link_reject', { id: el.dataset.id }); toast('ปฏิเสธคำขอแล้ว'); load(); } catch (e) { toast(e.message); }
+  }),
   approve: (el) => busy(el, async () => {
     const p = S.peopleData.people.find((x) => x.id === el.dataset.id);
     try { await savePerson(p, { status: 'active' }); toast(`อนุมัติ ${p.nickname} แล้ว`); load(); } catch (e) { toast(e.message); }
@@ -2005,7 +2026,9 @@ document.addEventListener('submit', async (ev) => {
     await busy(btn, async () => {
       try {
         const r = await api('link_phone', { phone });
-        if (r.person) { S.me = r.person; route(); } else { S.regPhone = r.phone || phone; renderRegister(); }
+        if (r.person) { S.me = r.person; route(); }
+        else if (r.pending_approval) { S.pendingLink = true; renderLinkPending(); }
+        else { S.regPhone = r.phone || phone; renderRegister(); }
       } catch (e) { const el = $('#ph-err'); if (el) el.textContent = e.message; }
     });
   } else if (id === 'reg-form') {

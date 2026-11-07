@@ -278,7 +278,7 @@ function peopleTable(d) {
   const rows = (d.people_list || []).map((p) => {
     const face = p.face_photo || p.line_picture;
     const tags = [p.role === 'admin' ? '<span class="tag">หัวหน้า</span>' : '', p.can_schedule ? '<span class="tag">ผู้จัดการ</span>' : '', p.is_dev ? '<span class="tag dev">dev</span>' : '',
-      p.is_test ? '<span class="tag test">ทดสอบ</span>' : '', p.status !== 'active' ? `<span class="tag off">${p.status === 'pending' ? 'รออนุมัติ' : 'ปิดใช้งาน'}</span>` : ''].join('');
+      p.is_test ? '<span class="tag test">ทดสอบ</span>' : '', p.status !== 'active' ? `<span class="tag off">${p.status === 'pending' ? 'รออนุมัติ' : 'ปิดใช้งาน'}</span>` : '', p.has_pending ? '<span class="tag off">รอเชื่อม LINE</span>' : ''].join('');
     const self = p.is_dev;
     const open = self ? '<a class="btn" href="index.html" target="_blank" rel="noopener">เปิดแอป (ตัวเอง)</a>'
       : p.status !== 'active' ? '<span class="note">ต้องเปิดใช้งานก่อน</span>'
