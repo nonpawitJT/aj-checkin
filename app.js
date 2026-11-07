@@ -31,6 +31,8 @@ const fmtPhone = (p) => (p && p.length === 10 ? `${p.slice(0, 3)}-${p.slice(3, 6
 const durText = (m) => { const h = Math.floor(m / 60), r = m % 60; return h ? `${h} ชม.${r ? ` ${r} นาที` : ''}` : `${r} นาที`; };
 const shiftText = (d) => (d.off ? 'หยุด' : (d.has_shift || d.start) ? `${hm(d.start)}–${d.open_end ? 'จนลูกค้าหมด' : hm(d.end)}` : 'ยังไม่จัดกะ');
 const DOW_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+const dFull = (k) => { const d = parseD(k); return `${DOW_FULL[d.getDay()]} ${d.getDate()} ${MONTHS_S[d.getMonth()]} ${be(d.getFullYear())}`; };
+const dDMon = (k) => { const d = parseD(k); return `${d.getDate()} ${MONTHS_S[d.getMonth()]}`; };
 const thaiDay = (k) => { const d = parseD(k); return `วัน${DOW_FULL[d.getDay()]}ที่ ${d.getDate()} ${MONTHS_S[d.getMonth()]} ${String(be(d.getFullYear())).slice(-2)}`; };
 const fmtStamp = (s) => { if (!s) return ''; const d = String(s).slice(0, 10), t = String(s).slice(11, 16); return `${parseD(d).getDate()} ${MONTHS_S[parseD(d).getMonth()]} ${hm(t)}`; };
 const ACT_AS = (() => { try { return new URLSearchParams(location.search).get('as') || ''; } catch (e) { return ''; } })();
@@ -675,6 +677,42 @@ function leaveItem(l, who) {
       ${who === 'adm' && l.status === 'pending' ? `<div class="item-sub">ขอเมื่อ ${dShort(String(l.created).slice(0, 10))} ${esc(String(l.created).slice(11, 16))} น.</div>` : ''}
       ${btns}</div></li>`;
 }
+/* Resignation notice (shop rule): last working day = notice day + 45 days; working until then gets the deposit back */
+const RESIGN_DAYS = 45;
+const resignLeft = (rs) => (rs.days_left > 0 ? `อีก ${rs.days_left} วัน` : rs.days_left === 0 ? 'วันนี้วันสุดท้าย' : '');
+const resignGain = () => `<div class="gain-box"><b>ทำงานครบถึงวันนั้น จะได้</b>
+    <span>${svg('tick', 20)}เงินประกันคืนตามที่จ่ายไว้ (สูงสุด 3,000 บาท)</span><span>${svg('tick', 20)}เงินเดือนและ OT ตามปกติ</span></div>`;
+function resignBox(rs, who) {
+  const when = `แจ้งเมื่อ ${dLong(rs.notice)} ${esc(String(rs.created || '').slice(11, 16))} น.`;
+  return `<div class="resign-box" role="status">${icCircle('out')}<div class="rb-t">
+      <b class="rb-k">แจ้งลาออกแล้ว${who === 'adm' ? (rs.ack ? ` · รับทราบแล้ว${rs.ack_by ? ` (${esc(rs.ack_by)})` : ''}` : ' · ยังไม่ได้รับทราบ') : ''}</b>
+      <span class="note">วันสิ้นสภาพพนักงาน</span><b class="rb-date">${dFull(rs.end)}</b>
+      <span class="note">${[resignLeft(rs), when].filter(Boolean).join(' · ')}</span>
+      ${who === 'adm' && rs.reason ? `<span class="note">เหตุผล: ${esc(rs.reason)}</span>` : ''}
+      ${who === 'me' ? '<span class="note">เปลี่ยนใจ ติดต่อหัวหน้า</span>' : ''}</div></div>`;
+}
+function openResign() {
+  const end = addDays(S.today, RESIGN_DAYS);
+  sheet(`<h3>แจ้งลาออก</h3>
+    <div class="resign-date"><span>วันสิ้นสภาพพนักงาน</span><b>${dFull(end)}</b><span class="note">แจ้งวันนี้ ${dLong(S.today)} + ${RESIGN_DAYS} วัน</span></div>
+    ${resignGain()}
+    <ul class="resign-notes"><li>${svg('info', 20)}<span>จนถึงวันนั้นเข้ากะตามปกติ หลังจากนั้นระบบปิดบัญชีให้เอง</span></li>
+      <li>${svg('alert', 20)}<span>ถ้าออกก่อนวันนั้น <b class="t-warn">ไม่ได้เงินประกันคืน</b> · โทรแจ้งผู้จัดการ</span></li></ul>
+    <div class="field"><label for="rs-reason">เหตุผล (ไม่บังคับ)</label><textarea id="rs-reason" maxlength="300" placeholder="เช่น ย้ายไปอยู่ต่างจังหวัด"></textarea></div>
+    <p class="err" id="sheet-err" role="alert"></p>
+    <div class="sheet-actions"><button class="btn" type="button" data-act="close">ยังไม่แจ้ง</button>
+      <button class="btn bad-solid" type="button" data-act="resign-send" data-confirm="แตะอีกครั้งเพื่อยืนยันแจ้งลาออก">ยืนยันแจ้งลาออก</button></div>`);
+}
+/* Head: a new resignation notice to acknowledge (or cancel if the person changed their mind) */
+function resignCard(rs) {
+  return `<section class="panel dcard" aria-label="แจ้งลาออก ${esc(rs.nickname)}"><div class="dc-head">${icCircle('out', 'warn')}
+      <div class="dc-who"><span class="dc-k t-warn">แจ้งลาออก</span><b>${esc(rs.nickname)}${rs.shop_code ? ` · ร้าน ${esc(rs.shop_code)}` : ''}</b></div></div>
+    <div class="dc-body"><span class="note">วันสิ้นสภาพพนักงาน</span><span><b class="rb-date">${dFull(rs.end)}</b>${resignLeft(rs) ? ` · ${resignLeft(rs)}` : ''}</span>
+      <span class="note">แจ้งเมื่อ ${dLong(rs.notice)} ${esc(String(rs.created || '').slice(11, 16))} น.${rs.reason ? ` · เหตุผล: ${esc(rs.reason)}` : ''}</span>
+      <span class="rb-ok">${svg('tick', 18)}แจ้งล่วงหน้า ${RESIGN_DAYS} วัน · คืนเงินประกันตามที่จ่ายไว้</span></div>
+    <div class="dc-btns"><button class="btn solid" type="button" data-act="resign-decide" data-v="ack" data-id="${esc(rs.id)}">รับทราบ</button>
+      <button class="btn" type="button" data-act="resign-decide" data-v="cancel" data-id="${esc(rs.id)}" data-confirm="แตะอีกครั้งเพื่อยกเลิกการลาออก">ยกเลิกการลาออก</button></div></section>`;
+}
 /* A pending leave request as a decision card (head): who, dates, reason, approve / reject side by side */
 function leaveCard(l) {
   return `<section class="panel dcard" aria-label="คำขอลา ${esc(l.nickname)}"><div class="dc-head">${icCircle('cal')}
@@ -710,7 +748,9 @@ VIEWS.st_history = {
     const meCard = `<section class="panel me-card"><div class="me-row">${avatar(me)}<div class="item-main"><b class="me-name">${esc(me.nickname)}</b>
         <span class="item-sub">${me.shop_code ? `ร้าน ${esc(me.shop_code)} · ` : ''}<span class="num">${esc(fmtPhone(me.phone))}</span></span></div></div>
       <div class="face-btns" role="group" aria-label="${me.face_photo ? 'เปลี่ยนรูปประจำตัว' : 'ใส่รูปประจำตัว'}"><button class="btn" type="button" data-act="my-face" data-src="cam">${svg('cam', 20)}ถ่ายรูปใหม่</button>
-        <button class="btn" type="button" data-act="my-face" data-src="pick">${svg('image', 20)}รูปจากอัลบั้ม</button></div></section>`;
+        <button class="btn" type="button" data-act="my-face" data-src="pick">${svg('image', 20)}รูปจากอัลบั้ม</button></div>
+      ${me.role === 'admin' ? '' : me.resign ? `${resignBox(me.resign, 'me')}${resignGain()}`
+        : `<div class="resign-row"><span class="note">ต้องแจ้งล่วงหน้า ${RESIGN_DAYS} วัน</span><button class="btn" type="button" data-act="resign-open">${svg('out', 20)}แจ้งลาออก</button></div>`}</section>`;
     const part = (ic, label, v) => `<div class="money-part"><div class="mp-head"><span class="mp-ic">${svg(ic, 22)}</span><b>${label}</b></div>
         <span class="mp-v${v ? '' : ' zero'}">${v ? '+' : ''}${baht(v)}</span></div>`;
     const money = `<section class="money-card" aria-label="เงิน OT เดือนนี้">
@@ -750,7 +790,7 @@ VIEWS.adm_board = {
     S.board = await api('adm_board', { date: S.boardDate || '' });
     S.today = S.board.today;
     S.badges.people = S.board.pending_people;
-    S.badges.notices = (S.board.pending_absences || 0) + (S.board.pending_leaves || 0);
+    S.badges.notices = (S.board.pending_absences || 0) + (S.board.pending_leaves || 0) + (S.board.pending_resigns || 0);
     S.badges.roster = S.board.rosters_pending;
   },
   render() {
@@ -785,6 +825,7 @@ VIEWS.adm_board = {
     if (otherRos) todo.push(todoRow({ attrs: 'data-act="tab" data-t="roster"', cls: 'warn', icon: 'clip', title: `ตารางเวร${rtWait ? 'วันอื่น' : ''} รออนุมัติ ${otherRos} วัน`, sub: 'แตะเพื่อดู' }));
     if (r.pending_absences) todo.push(todoRow({ attrs: 'data-act="tab" data-t="notices"', cls: 'bad', icon: 'flag', title: `ขาดงาน รอยืนยัน ${r.pending_absences} รายการ`, sub: 'แตะเพื่อยืนยันว่าขาดหรือลา' }));
     if (r.pending_leaves) todo.push(todoRow({ attrs: 'data-act="tab" data-t="notices"', icon: 'cal', title: `คำขอลา ${r.pending_leaves} รายการ`, sub: 'รออนุมัติ · แตะเพื่อดู' }));
+    if (r.pending_resigns) todo.push(todoRow({ attrs: 'data-act="tab" data-t="notices"', cls: 'warn', icon: 'out', title: `แจ้งลาออก ${r.pending_resigns} คน`, sub: 'แตะเพื่อรับทราบ' }));
     if (r.pending_people) todo.push(todoRow({ attrs: 'data-act="tab" data-t="people"', icon: 'person', title: `พนักงานใหม่ รออนุมัติ ${r.pending_people} คน`, sub: 'แตะเพื่อดู' }));
     const todoHTML = todo.length || rtRow ? `<section class="todo-list" aria-label="ต้องทำ">${todo.length ? `<h2 class="sec-h">ต้องทำ ${countBadge(todo.length)}</h2>` : ''}${todo.join('')}${rtRow}</section>` : '';
     const rels = r.releases || [], relOf = (code) => rels.find((x) => x.shop === code);
@@ -1074,7 +1115,7 @@ function openRosterItem(item, pre) {
   if (!item && !e.off && !e.start && e.presets.length) Object.assign(e, { start: e.presets[0].start, end: e.presets[0].end || '', open: e.presets[0].open_end });
   S.edit = e;
   const used = new Set((r.items || []).filter((i) => i.person_id && (!item || i.id !== item.id)).map((i) => i.person_id));
-  const opt = (p) => `<option value="${esc(p.id)}"${p.id === e.pid ? ' selected' : ''}${used.has(p.id) ? ' disabled' : ''}>${esc(p.nickname)}${used.has(p.id) ? ' (มีในตารางแล้ว)' : ''}</option>`;
+  const opt = (p) => `<option value="${esc(p.id)}"${p.id === e.pid ? ' selected' : ''}${used.has(p.id) ? ' disabled' : ''}>${esc(p.nickname)}${p.until ? ` · ทำงานถึง ${dDMon(p.until)}` : ''}${used.has(p.id) ? ' (มีในตารางแล้ว)' : ''}</option>`;
   const groups = S.shops.map((s) => { const list = people.filter((p) => p.shop_code === s.code); return list.length ? `<optgroup label="ร้าน ${esc(s.code)}">${list.map(opt).join('')}</optgroup>` : ''; }).join('')
     + (people.some((p) => !p.shop_code) ? `<optgroup label="ไม่มีร้านประจำ">${people.filter((p) => !p.shop_code).map(opt).join('')}</optgroup>` : '');
   sheet(`<h3>${item ? `แก้ไข ${esc(item.name)}` : 'เพิ่มคนในตาราง'}</h3><p class="note">${thaiDay(r.date)}</p>
@@ -1325,19 +1366,19 @@ VIEWS.adm_notices = {
     if (!S.noticeMonth) S.noticeMonth = S.today.slice(0, 7);
     const [n, l] = await Promise.all([api('adm_notices', { from: `${S.noticeMonth}-01`, to: minKey(monthEnd(S.noticeMonth), S.today) }), api('adm_leaves')]);
     S.notices = n; S.leaves = l;
-    S.badges.notices = (n.pending || []).length + (l.pending || []).length;
+    S.badges.notices = (n.pending || []).length + (l.pending || []).length + (l.resigns || []).filter((x) => !x.ack).length;
   },
   render() {
     const r = S.notices, lv = S.leaves || {};
-    const lvPend = lv.pending || [], abPend = r.pending || [];
+    const lvPend = lv.pending || [], abPend = r.pending || [], rsPend = (lv.resigns || []).filter((x) => !x.ack);
     /* waiting for a decision: leave requests + days with no check-in */
     const absCard = (x) => `<section class="panel dcard" aria-label="ขาดงาน ${esc(x.nickname)}"><div class="dc-head">${icCircle('alert', 'bad')}
         <div class="dc-who"><span class="dc-k t-bad">ไม่ได้ลงเวลาเข้างาน</span><b>${esc(x.nickname)}${x.shop_code ? ` · ร้าน ${esc(x.shop_code)}` : ''}</b></div></div>
       <div class="dc-body"><span><b>${dShort(x.date)}</b> · กะ <span class="num">${hm(x.start)}–${hm(x.end)}</span></span></div>
       <div class="dc-btns"><button class="btn danger" type="button" data-act="absent" data-v="recorded" data-pid="${esc(x.person_id)}" data-date="${x.date}">ขาด ไม่แจ้ง</button>
         <button class="btn" type="button" data-act="absent" data-v="excused" data-pid="${esc(x.person_id)}" data-date="${x.date}">แจ้งแล้ว / ลา</button></div></section>`;
-    const nDec = lvPend.length + abPend.length;
-    const decide = nDec ? `<h2 class="sec-h">รอตัดสินใจ ${countBadge(nDec)}</h2><div class="shop-grid">${lvPend.map(leaveCard).join('')}${abPend.map(absCard).join('')}</div>` : '';
+    const nDec = lvPend.length + abPend.length + rsPend.length;
+    const decide = nDec ? `<h2 class="sec-h">รอตัดสินใจ ${countBadge(nDec)}</h2><div class="shop-grid">${rsPend.map(resignCard).join('')}${lvPend.map(leaveCard).join('')}${abPend.map(absCard).join('')}</div>` : '';
     const lvRecent = (lv.recent || []).map((l) => leaveItem(l, 'adm')).join('');
     /* this month's notes: month arrows (12 months back) and filters with counts */
     const months = monthsBack(12), i = months.indexOf(S.noticeMonth);
@@ -1502,7 +1543,7 @@ VIEWS.adm_people = {
     const pending = all.filter((p) => p.status === 'pending'), active = all.filter((p) => p.status === 'active'), inactive = all.filter((p) => p.status === 'inactive');
     const appSt = (p) => (p.linked ? `<span class="pst ok">${svg('tick', 18)}เปิดแอปแล้ว</span>` : `<span class="pst warn">${svg('alert', 18)}ยังไม่ได้เปิดแอป</span>`);
     const row = (p) => `<li><button class="item go" type="button" data-act="person-edit" data-id="${esc(p.id)}">${avatar(p)}<span class="item-main">
-      <span class="item-line"><span class="item-name">${esc(p.nickname)}</span>${p.role === 'admin' ? '<span class="tag">หัวหน้า</span>' : ''}${p.can_schedule ? '<span class="tag">ผู้จัดการ</span>' : ''}${p.is_test ? '<span class="tag test">ทดสอบ</span>' : ''}${p.is_demo ? '<span class="tag test">ตัวอย่าง</span>' : ''}</span>
+      <span class="item-line"><span class="item-name">${esc(p.nickname)}</span>${p.role === 'admin' ? '<span class="tag">หัวหน้า</span>' : ''}${p.can_schedule ? '<span class="tag">ผู้จัดการ</span>' : ''}${p.is_test ? '<span class="tag test">ทดสอบ</span>' : ''}${p.is_demo ? '<span class="tag test">ตัวอย่าง</span>' : ''}${p.resign ? `<span class="tag warn">${svg('out', 14)}ทำงานถึง ${dDMon(p.resign.end)}</span>` : ''}</span>
       <span class="item-line">${appSt(p)}<span class="item-sub num">${esc(fmtPhone(p.phone))}</span></span></span><span class="go-mark" aria-hidden="true">›</span></button></li>`;
     /* new sign-ups: big photo, details, approve / reject side by side */
     const pend = pending.map((p) => `<section class="panel dcard" aria-label="รออนุมัติ ${esc(p.nickname)}"><div class="pend-top">${avatar(p, 'xl')}<div class="item-main">
@@ -1529,7 +1570,10 @@ function openPersonEdit(id) {
   const isMe = p && p.id === S.me.id;
   const shopOpts = `<option value="">ไม่มีร้านประจำ</option>` + S.shops.map((s) => `<option value="${esc(s.code)}"${p && p.shop_code === s.code ? ' selected' : ''}>${esc(s.code)}</option>`).join('');
   S.edit = { id: p ? p.id : '' };
-  sheet(`<h3>${p ? `แก้ไขข้อมูล ${esc(p.nickname)}` : 'เพิ่มพนักงานใหม่'}</h3>
+  const rs = p && p.resign;
+  const rsHTML = rs ? `${resignBox(rs, 'adm')}<div class="row-btns">${rs.ack ? '' : `<button class="btn solid" type="button" data-act="resign-decide" data-v="ack" data-id="${esc(rs.id)}">รับทราบ</button>`}
+      <button class="btn" type="button" data-act="resign-decide" data-v="cancel" data-id="${esc(rs.id)}" data-confirm="แตะอีกครั้งเพื่อยกเลิกการลาออก">ยกเลิกการลาออก</button></div>` : '';
+  sheet(`<h3>${p ? `แก้ไขข้อมูล ${esc(p.nickname)}` : 'เพิ่มพนักงานใหม่'}</h3>${rsHTML}
     <div class="grid2"><div class="field"><label for="pe-nick">ชื่อเล่น</label><input type="text" id="pe-nick" maxlength="20" value="${esc(p ? p.nickname : '')}"></div>
       <div class="field"><label for="pe-shop">ร้านประจำ</label><select id="pe-shop">${shopOpts}</select></div></div>
     <div class="field"><label for="pe-full">ชื่อ-นามสกุล (ไม่ใส่ก็ได้)</label><input type="text" id="pe-full" maxlength="60" value="${esc(p ? p.full_name || '' : '')}"></div>
@@ -1690,6 +1734,14 @@ const ACT = {
     if (to < from) return sheetErr('วันสุดท้ายต้องไม่ก่อนวันแรก');
     if (!reason) return sheetErr('กรุณาใส่เหตุผลที่ลา');
     try { await api('leave_request', { from, to, reason }); closeSheet(); toast('ส่งคำขอลาแล้ว รอหัวหน้าอนุมัติ'); load(); } catch (e) { sheetErr(e.message); }
+  }),
+  'resign-open': () => openResign(),
+  'resign-send': (el) => busy(el, async () => {
+    try { const r = await api('resign_request', { reason: $('#rs-reason').value.trim() }); S.me = r.person; closeSheet(); toast('แจ้งลาออกแล้ว'); paint(); } catch (e) { sheetErr(e.message); }
+  }),
+  'resign-decide': (el) => busy(el, async () => {
+    const v = el.dataset.v;
+    try { await api('adm_resign', { id: el.dataset.id, decision: v }); if (!modal.hidden) closeSheet(); toast(v === 'ack' ? 'รับทราบการลาออกแล้ว' : 'ยกเลิกการลาออกแล้ว'); load(); } catch (e) { toast(e.message); }
   }),
   'leave-cancel': (el) => busy(el, async () => {
     try { await api('leave_cancel', { id: el.dataset.id }); toast('ยกเลิกคำขอลาแล้ว'); load(); } catch (e) { toast(e.message); }
