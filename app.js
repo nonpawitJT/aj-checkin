@@ -150,9 +150,15 @@ async function loadMe() {
   S.dev = !!r.dev;
   route();
 }
-// Rich menu buttons open the app with ?tab=today|shifts|history
+// Rich menu buttons open the app with ?tab=today|shifts|history|profile
+// (through liff.line.me the query first arrives inside liff.state, so look there too)
 let deepLink = null;
-try { deepLink = new URLSearchParams(location.search).get('tab'); } catch (e) { /* ignore */ }
+try {
+  const q = new URLSearchParams(location.search);
+  deepLink = q.get('tab');
+  const st = q.get('liff.state');
+  if (!deepLink && st) deepLink = new URLSearchParams(st.slice(st.indexOf('?') + 1)).get('tab');
+} catch (e) { /* ignore */ }
 function route() {
   const p = S.me;
   if (!p) return S.dev ? renderDevHome() : renderPhone('');
@@ -161,9 +167,9 @@ function route() {
   if (p.role !== 'admin') S.mode = 'staff';
   else if (!S.mode || (S.mode === 'staff' && !p.shop_code)) S.mode = 'admin';
   if (deepLink) {
-    if (S.mode === 'staff' && ['today', 'shifts', 'history'].includes(deepLink)) S.tab = deepLink;
+    if (S.mode === 'staff' && ['today', 'shifts', 'history', 'profile'].includes(deepLink)) S.tab = deepLink;
     else if (S.mode === 'staff' && deepLink === 'roster' && p.can_schedule) S.tab = 'roster';
-    else if (S.mode === 'admin') S.adm = { today: 'board', shifts: 'roster', roster: 'roster', history: 'summary' }[deepLink] || S.adm;
+    else if (S.mode === 'admin') S.adm = { today: 'board', shifts: 'roster', roster: 'roster', history: 'summary', profile: 'people' }[deepLink] || S.adm;
     deepLink = null;
   }
   load();
@@ -197,7 +203,7 @@ function fatal(title, detail, retry) {
 function navItems() {
   return S.mode === 'admin'
     ? [['board', 'วันนี้', 'users'], ['roster', 'จัดเวร', 'clip'], ['notices', 'บันทึก', 'flag'], ['summary', 'สรุป', 'chart'], ['people', 'พนักงาน', 'person']]
-    : [['today', 'ลงเวลา', 'clock'], ['shifts', 'กะของฉัน', 'cal'], ['history', 'ประวัติ', 'list']].concat(S.me && S.me.can_schedule ? [['roster', 'จัดเวร', 'clip']] : []);
+    : [['today', 'ลงเวลา', 'clock'], ['shifts', 'กะของฉัน', 'cal'], ['history', 'ประวัติ', 'list']].concat(S.me && S.me.can_schedule ? [['roster', 'จัดเวร', 'clip']] : [], [['profile', 'โปรไฟล์', 'user']]);
 }
 function shell(content) {
   const p = S.me, admin = S.mode === 'admin';
@@ -621,11 +627,11 @@ VIEWS.st_today = {
 };
 VIEWS.st_shifts = {
   async load() {
-    const [a, b] = await Promise.all([api('my_shifts'), api('my_leaves')]);
-    S.myShifts = a; S.myLeaves = b; S.today = a.today || S.today;
+    const a = await api('my_shifts');
+    S.myShifts = a; S.today = a.today || S.today;
   },
   render() {
-    const r = S.myShifts, lv = S.myLeaves || {}, days = r.days || [], me = S.me;
+    const r = S.myShifts, days = r.days || [], me = S.me;
     const next = days.find((d) => d.date >= r.today && d.has_shift && !d.off);
     let hero = '';
     if (next) {
@@ -653,13 +659,32 @@ VIEWS.st_shifts = {
         <div class="dd-main"><div class="dd-top">${main}${today ? '<span class="tag today">วันนี้</span>' : ''}</div>
           ${extra ? `<div class="dd-chips">${extra}</div>` : ''}${d.note ? `<span class="x">${esc(d.note)}</span>` : ''}</div></li>`;
     }).join('');
-    const items = (lv.items || []).map((l) => leaveItem(l, 'me')).join('');
     return `<div class="stack"><div><h1 class="view-title">กะของฉัน</h1><p class="note">14 วันข้างหน้า · ถ้ากะเปลี่ยนตามไฟลท์ จะเห็นที่นี่ทันที</p></div>
       ${hero}<ol class="panel list">${rows}</ol>
+      <button class="todo" type="button" data-act="tab" data-t="profile">${icCircle('cal')}<span class="todo-t"><b>ขอลาหยุด / ดูการลา</b><span class="todo-s">อยู่ที่หน้าโปรไฟล์</span></span><span class="todo-go" aria-hidden="true">›</span></button></div>`;
+  },
+};
+/* Profile: my photo, my leave requests, and the resignation notice */
+VIEWS.st_profile = {
+  async load() {
+    S.myLeaves = await api('my_leaves');
+  },
+  render() {
+    const lv = S.myLeaves || {}, me = S.me;
+    const items = (lv.items || []).map((l) => leaveItem(l, 'me')).join('');
+    const meCard = `<section class="panel me-card"><div class="me-row">${avatar(me)}<div class="item-main"><b class="me-name">${esc(me.nickname)}</b>
+        <span class="item-sub">${me.shop_code ? `ร้าน ${esc(me.shop_code)} · ` : ''}<span class="num">${esc(fmtPhone(me.phone))}</span></span></div></div>
+      <div class="face-btns" role="group" aria-label="${me.face_photo ? 'เปลี่ยนรูปประจำตัว' : 'ใส่รูปประจำตัว'}"><button class="btn" type="button" data-act="my-face" data-src="cam">${svg('cam', 20)}ถ่ายรูปใหม่</button>
+        <button class="btn" type="button" data-act="my-face" data-src="pick">${svg('image', 20)}รูปจากอัลบั้ม</button></div></section>`;
+    const resign = me.role === 'admin' ? ''
+      : me.resign ? `<section class="panel resign-panel" aria-label="ลาออก">${resignBox(me.resign, 'me')}${resignGain()}</section>`
+        : `<section class="panel resign-panel" aria-label="ลาออก"><div class="resign-row"><span class="note">ลาออก ต้องแจ้งล่วงหน้า ${RESIGN_DAYS} วัน</span><button class="btn" type="button" data-act="resign-open">${svg('out', 20)}แจ้งลาออก</button></div></section>`;
+    return `<div class="stack"><h1 class="view-title">โปรไฟล์</h1>${meCard}
       <div class="leave-head"><div><h2 class="section-title">การลาของฉัน</h2><span class="k">ปีนี้ลาไปแล้ว <b>${lv.year_days || 0}</b> วัน</span></div>
-        <button class="btn solid" type="button" data-act="leave-new">+ ขอลา</button></div>
+        <button class="btn solid" type="button" data-act="leave-new">${svg('plus', 20)}ขอลา</button></div>
       ${items ? `<ul class="panel list">${items}</ul>` : '<p class="panel empty">ยังไม่เคยขอลา</p>'}
-      <p class="tip">${svg('info', 20)}<span>ขอลาล่วงหน้าอย่างน้อย 24 ชม. หัวหน้าต้องอนุมัติก่อน · ป่วยหรือฉุกเฉิน โทรหาหัวหน้า</span></p></div>`;
+      <p class="tip">${svg('info', 20)}<span>ขอลาล่วงหน้าอย่างน้อย 24 ชม. หัวหน้าต้องอนุมัติก่อน · ป่วยหรือฉุกเฉิน โทรหาหัวหน้า</span></p>
+      ${resign}</div>`;
   },
 };
 /* One leave request. who: 'me' (staff: cancel while pending) or 'adm' (head: approve / reject / cancel) */
@@ -745,12 +770,6 @@ VIEWS.st_history = {
         <button class="icon-btn" type="button" data-act="hist-go" data-m="${older}" aria-label="เดือนก่อน"${older ? '' : ' disabled'}>‹</button>
         <div class="month-mid">${S.histMonth === months[0] ? '<span class="k">เดือนนี้</span>' : ''}<strong>${monthLabel(S.histMonth)}</strong></div>
         <button class="icon-btn" type="button" data-act="hist-go" data-m="${newer}" aria-label="เดือนถัดไป"${newer ? '' : ' disabled'}>›</button></div>`;
-    const meCard = `<section class="panel me-card"><div class="me-row">${avatar(me)}<div class="item-main"><b class="me-name">${esc(me.nickname)}</b>
-        <span class="item-sub">${me.shop_code ? `ร้าน ${esc(me.shop_code)} · ` : ''}<span class="num">${esc(fmtPhone(me.phone))}</span></span></div></div>
-      <div class="face-btns" role="group" aria-label="${me.face_photo ? 'เปลี่ยนรูปประจำตัว' : 'ใส่รูปประจำตัว'}"><button class="btn" type="button" data-act="my-face" data-src="cam">${svg('cam', 20)}ถ่ายรูปใหม่</button>
-        <button class="btn" type="button" data-act="my-face" data-src="pick">${svg('image', 20)}รูปจากอัลบั้ม</button></div>
-      ${me.role === 'admin' ? '' : me.resign ? `${resignBox(me.resign, 'me')}${resignGain()}`
-        : `<div class="resign-row"><span class="note">ต้องแจ้งล่วงหน้า ${RESIGN_DAYS} วัน</span><button class="btn" type="button" data-act="resign-open">${svg('out', 20)}แจ้งลาออก</button></div>`}</section>`;
     const part = (ic, label, v) => `<div class="money-part"><div class="mp-head"><span class="mp-ic">${svg(ic, 22)}</span><b>${label}</b></div>
         <span class="mp-v${v ? '' : ' zero'}">${v ? '+' : ''}${baht(v)}</span></div>`;
     const money = `<section class="money-card" aria-label="เงิน OT เดือนนี้">
@@ -778,7 +797,7 @@ VIEWS.st_history = {
         <div class="dd-main"><div class="dd-top">${shift}${today ? '<span class="tag today">วันนี้</span>' : ''}</div>
           ${times ? `<span class="dd-times">${times}</span>` : ''}${chips ? `<div class="dd-chips">${chips}</div>` : ''}${notes ? `<span class="x">${notes}</span>` : ''}</div></li>`;
     }).join('');
-    return `<div class="stack"><h1 class="view-title">ประวัติของฉัน</h1>${meCard}${monthNav}${money}${late}${strip}
+    return `<div class="stack"><h1 class="view-title">ประวัติของฉัน</h1>${monthNav}${money}${late}${strip}
       <h2 class="section-title">รายวัน</h2>
       ${rows ? `<ol class="panel list">${rows}</ol>` : '<p class="panel empty">ยังไม่มีข้อมูลในเดือนนี้</p>'}</div>`;
   },
