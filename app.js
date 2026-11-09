@@ -29,7 +29,17 @@ const ymAdd = (ym, n) => { const p = ym.split('-').map(Number); const d = new Da
 const minKey = (a, b) => (a < b ? a : b);
 const fmtPhone = (p) => (p && p.length === 10 ? `${p.slice(0, 3)}-${p.slice(3, 6)}-${p.slice(6)}` : (p || ''));
 const durText = (m) => { const h = Math.floor(m / 60), r = m % 60; return h ? `${h} ชม.${r ? ` ${r} นาที` : ''}` : `${r} นาที`; };
-const shiftText = (d) => (d.off ? 'หยุด' : (d.has_shift || d.start) ? `${hm(d.start)}–${d.open_end ? 'จนลูกค้าหมด' : hm(d.end)}` : 'ยังไม่จัดกะ');
+/* A two-round day comes with r2 = { end1 (round 1 end), start, end, open_end, shop } */
+const r2Of = (d) => (d && d.r2 && d.r2.start ? d.r2 : null);
+const r1Text = (d) => `${hm(d.start)}–${d.r2.end1 ? hm(d.r2.end1) : '?'}`;
+const r2Text = (r) => `${hm(r.start)}–${r.open_end ? 'จนลูกค้าหมด' : hm(r.end)}`;
+const shiftText = (d) => (d.off ? 'หยุด' : (d.has_shift || d.start)
+  ? (r2Of(d) ? `${r1Text(d)} และ ${r2Text(d.r2)}${d.r2.shop && d.r2.shop !== d.shop ? ` ร้าน ${d.r2.shop}` : ''}` : `${hm(d.start)}–${d.open_end ? 'จนลูกค้าหมด' : hm(d.end)}`) : 'ยังไม่จัดกะ');
+/* the roster adds "รอบ 2: …" to the shift note; drop it where the rounds are shown on their own */
+const shiftNote = (d) => (r2Of(d) && d.note ? d.note.split(' · ').filter((x) => !x.startsWith('รอบ 2:')).join(' · ') : d.note);
+/* Each round on its own line; round 2's shop is named when it differs */
+const roundsHTML = (d, cls) => `<span class="rounds${cls ? ` ${cls}` : ''}"><span class="rnd"><span class="rnd-k">รอบ 1</span><span class="num">${r1Text(d)}</span></span>
+  <span class="rnd"><span class="rnd-k">รอบ 2</span><span class="num">${r2Text(d.r2)}</span>${d.r2.shop && d.r2.shop !== d.shop ? `<span class="rnd-shop">ร้าน ${esc(d.r2.shop)}</span>` : ''}</span></span>`;
 const DOW_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 const dFull = (k) => { const d = parseD(k); return `${DOW_FULL[d.getDay()]} ${d.getDate()} ${MONTHS_S[d.getMonth()]} ${be(d.getFullYear())}`; };
 const dDMon = (k) => { const d = parseD(k); return `${d.getDate()} ${MONTHS_S[d.getMonth()]}`; };
@@ -606,7 +616,7 @@ VIEWS.st_today = {
   async load() { S.todayData = await api('today'); S.today = S.todayData.date || S.today; },
   render() {
     const p = S.me, d = (S.todayData && S.todayData.day) || {};
-    const shiftV = d.off ? 'วันหยุด' : d.has_shift ? `<span class="num">${shiftText(d)}</span>` : 'ยังไม่มีกะ';
+    const shiftV = d.off ? 'วันหยุด' : d.has_shift ? (r2Of(d) ? roundsHTML(d) : `<span class="num">${shiftText(d)}</span>`) : 'ยังไม่มีกะ';
     const dayShop = d.shop || p.shop_code;
     let action;
     if (!d.in) action = `<button class="btn-primary" type="button" data-act="punch" data-kind="in">${svg('cam', 26)}ถ่ายรูปเข้างาน</button>`;
@@ -617,7 +627,7 @@ VIEWS.st_today = {
     const note = (rel ? `<div class="pass-note release"><span class="tag ok">กลับก่อนได้</span> ร้าน ${esc(rel.shop)} กลับได้ตั้งแต่ ${esc(rel.from)} น.${rel.note ? ` · ${esc(rel.note)}` : ''} ไม่นับว่าออกก่อนเวลา</div>` : '')
       + (d.shop && d.shop !== p.shop_code ? `<div class="pass-note"><span class="tag">ไปช่วยร้าน ${esc(d.shop)}</span> วันนี้ลงเวลาที่ร้าน ${esc(d.shop)}</div>` : '')
       + (d.leave && !d.in ? '<div class="pass-note release"><span class="tag ok">วันลา</span> วันนี้เป็นวันลาที่หัวหน้าอนุมัติแล้ว</div>' : '')
-      + (d.note ? `<div class="pass-note"><span class="tag">หมายเหตุกะ</span> ${esc(d.note)}</div>`
+      + (shiftNote(d) ? `<div class="pass-note"><span class="tag">หมายเหตุกะ</span> ${esc(shiftNote(d))}</div>`
         : !d.has_shift ? '<div class="pass-note">วันนี้ยังไม่มีกะในตาราง ลงเวลาได้ตามปกติ</div>' : '');
     return `<article class="pass" aria-label="ลงเวลาวันนี้">
       <div class="pass-top"><div class="gate-big"><span class="gk">ร้าน</span><span class="gv">${esc(dayShop || '-')}</span></div>
@@ -645,7 +655,7 @@ VIEWS.st_shifts = {
       hero = `<section class="next-shift" aria-label="กะถัดไป"><div class="ns-main">
           <span class="ns-k">${next.date === r.today ? 'กะวันนี้' : `กะถัดไป${word ? ` · ${word}` : ''}`}</span>
           <span class="ns-d">${DOW_FULL[nd.getDay()]} ${nd.getDate()} ${MONTHS_S[nd.getMonth()]}</span>
-          <span class="ns-t num">${shiftText(next)}</span>
+          ${r2Of(next) ? roundsHTML(next, 'big') : `<span class="ns-t num">${shiftText(next)}</span>`}
           ${next.pending ? '<span class="tag warn">มีแก้ไข รออนุมัติ</span>' : ''}</div>
         ${shop ? `<div class="gate-big"><span class="gk">ร้าน</span><span class="gv">${esc(shop)}</span></div>` : ''}</section>`;
     }
@@ -655,7 +665,7 @@ VIEWS.st_shifts = {
       if (d.off) main = '<span class="chip plain">วันหยุด</span>';
       else if (!d.has_shift && d.pending) main = '<span class="chip warn">ตารางรอหัวหน้าอนุมัติ</span>';
       else if (!d.has_shift) main = '<span class="t-muted">ยังไม่จัดกะ</span>';
-      else main = `<span class="num dd-shift">${shiftText(d)}</span>`;
+      else main = r2Of(d) ? roundsHTML(d) : `<span class="num dd-shift">${shiftText(d)}</span>`;
       const extra = [
         d.shop && d.shop !== me.shop_code ? `<span class="help-shop">${shopGate(d.shop)}ไปช่วยร้าน ${esc(d.shop)}</span>` : '',
         d.has_shift && d.pending ? '<span class="tag warn">มีแก้ไข รออนุมัติ</span>' : '',
@@ -663,7 +673,7 @@ VIEWS.st_shifts = {
       ].filter(Boolean).join('');
       return `<li class="dday${today ? ' today' : ''}${d.off ? ' off' : ''}"><span class="dblock"><b>${dd.getDate()}</b><span>${DOW[dd.getDay()]}.</span></span>
         <div class="dd-main"><div class="dd-top">${main}${today ? '<span class="tag today">วันนี้</span>' : ''}</div>
-          ${extra ? `<div class="dd-chips">${extra}</div>` : ''}${d.note ? `<span class="x">${esc(d.note)}</span>` : ''}</div></li>`;
+          ${extra ? `<div class="dd-chips">${extra}</div>` : ''}${shiftNote(d) ? `<span class="x">${esc(shiftNote(d))}</span>` : ''}</div></li>`;
     }).join('');
     return `<div class="stack"><div><h1 class="view-title">กะของฉัน</h1><p class="note">14 วันข้างหน้า · ถ้ากะเปลี่ยนตามไฟลท์ จะเห็นที่นี่ทันที</p></div>
       ${hero}<ol class="panel list">${rows}</ol>
@@ -712,7 +722,8 @@ function leaveItem(l, who) {
 const RESIGN_DAYS = 45;
 const resignLeft = (rs) => (rs.days_left > 0 ? `อีก ${rs.days_left} วัน` : rs.days_left === 0 ? 'วันนี้วันสุดท้าย' : '');
 const resignGain = () => `<div class="gain-box"><b>ทำงานครบถึงวันนั้น จะได้</b>
-    <span>${svg('tick', 20)}เงินประกันคืนตามที่จ่ายไว้ (สูงสุด 3,000 บาท)</span><span>${svg('tick', 20)}เงินเดือนและ OT ตามปกติ</span></div>`;
+    <span>${svg('tick', 20)}<span>เงินประกันคืนเท่าที่ส่งไว้<small class="gain-sub">ส่งเดือนละ 300 บาท ครบ 10 เดือน = 3,000 บาท</small></span></span>
+    <span>${svg('tick', 20)}เงินเดือนและ OT ตามปกติ</span></div>`;
 function resignBox(rs, who) {
   const when = `แจ้งเมื่อ ${dLong(rs.notice)} ${esc(String(rs.created || '').slice(11, 16))} น.`;
   return `<div class="resign-box" role="status">${icCircle('out')}<div class="rb-t">
@@ -740,7 +751,7 @@ function resignCard(rs) {
       <div class="dc-who"><span class="dc-k t-warn">แจ้งลาออก</span><b>${esc(rs.nickname)}${rs.shop_code ? ` · ร้าน ${esc(rs.shop_code)}` : ''}</b></div></div>
     <div class="dc-body"><span class="note">วันสิ้นสภาพพนักงาน</span><span><b class="rb-date">${dFull(rs.end)}</b>${resignLeft(rs) ? ` · ${resignLeft(rs)}` : ''}</span>
       <span class="note">แจ้งเมื่อ ${dLong(rs.notice)} ${esc(String(rs.created || '').slice(11, 16))} น.${rs.reason ? ` · เหตุผล: ${esc(rs.reason)}` : ''}</span>
-      <span class="rb-ok">${svg('tick', 18)}แจ้งล่วงหน้า ${RESIGN_DAYS} วัน · คืนเงินประกันตามที่จ่ายไว้</span></div>
+      <span class="rb-ok">${svg('tick', 18)}แจ้งล่วงหน้า ${RESIGN_DAYS} วัน · คืนเงินประกันเท่าที่ส่งไว้</span></div>
     <div class="dc-btns"><button class="btn solid" type="button" data-act="resign-decide" data-v="ack" data-id="${esc(rs.id)}">รับทราบ</button>
       <button class="btn" type="button" data-act="resign-decide" data-v="cancel" data-id="${esc(rs.id)}" data-confirm="แตะอีกครั้งเพื่อยกเลิกการลาออก">ยกเลิกการลาออก</button></div></section>`;
 }
@@ -790,7 +801,7 @@ VIEWS.st_history = {
         <div class="${t.early_n ? 'warn' : 'zero'}">${svg('out', 24)}<b>${t.early_n || 0}</b><span>ออกก่อนเวลา</span></div></section>`;
     const rows = (r.days || []).slice().reverse().map((d) => {
       const dd = parseD(d.date), today = d.date === r.today;
-      const shift = d.off ? '<span class="chip plain">วันหยุด</span>' : `<span class="num dd-shift">${d.has_shift ? shiftText(d) : 'ไม่มีกะ'}</span>`;
+      const shift = d.off ? '<span class="chip plain">วันหยุด</span>' : d.has_shift && r2Of(d) ? roundsHTML(d) : `<span class="num dd-shift">${d.has_shift ? shiftText(d) : 'ไม่มีกะ'}</span>`;
       const times = d.in ? `เข้า <span class="num">${hm(d.in)}</span>${d.out ? ` · ออก <span class="num">${hm(d.out)}</span>` : today ? ' · ยังไม่ออก' : ''}` : '';
       const chips = [
         today && d.in && !d.out ? '<span class="chip ok">กำลังทำงาน</span>' : '',
@@ -870,7 +881,7 @@ VIEWS.adm_board = {
         return `<li><button class="item" type="button" data-act="board-person" data-id="${esc(p.id)}">${avatar(p)}<span class="item-main">
           <span class="item-line"><span class="item-name">${esc(p.nickname)}</span><span class="num">${shiftText(d)}</span>${p.home_shop && p.home_shop !== p.shop_code ? `<span class="tag">มาจาก ${esc(p.home_shop)}</span>` : ''}</span>
           <span class="item-line">${stateChip(d)}${photoFlag(d)}${d.ot ? `<span class="tag ok">OT ${d.ot}</span>` : ''}${d.round2 ? '<span class="tag ok">2 รอบ</span>' : ''}${d.forgot ? '<span class="tag">ลืมเช็คเอาท์</span>' : ''}${d.ot_waived ? '<span class="tag">ไม่นับ OT</span>' : ''}${times && d.state !== 'done' ? `<span class="item-sub num">${times}</span>` : d.state === 'done' ? `<span class="item-sub num">เข้า ${hm(d.in)}</span>` : ''}</span>
-          ${d.note ? `<span class="item-sub">${esc(d.note)}</span>` : ''}</span></button></li>`;
+          ${shiftNote(d) ? `<span class="item-sub">${esc(shiftNote(d))}</span>` : ''}</span></button></li>`;
       }).join('');
       const rl = relOf(s.code);
       const relTag = rl ? `<span class="tag ok">กลับก่อนได้ ${esc(rl.from)}</span>` : '';
