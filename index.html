@@ -633,6 +633,16 @@ details.fold > summary:focus-visible{outline:3px solid var(--action);outline-off
 .face-pick .btn{flex:1;min-height:52px}
 .next-box{display:flex;gap:12px;align-items:flex-start;padding:14px 16px}
 .next-box > div{display:flex;flex-direction:column;line-height:1.45}
+/* two-round days: one line per round */
+.rounds{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rnd{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px}
+.rnd .num{font-weight:600}
+.rnd-k{font-size:.82rem;font-weight:700;color:var(--action);background:var(--action-soft);border-radius:6px;padding:0 6px;align-self:center}
+.rnd-shop{font-size:.88rem;font-weight:600;color:var(--muted)}
+.rounds.big{gap:4px;margin-top:2px}
+.rounds.big .num{font-size:1.6rem;line-height:1.2}
+.rounds.big .rnd-k{background:var(--surface);color:var(--action)}
+.rounds.big .rnd-shop{color:var(--brand-sub)}
 /* resignation notice */
 .btn.bad-solid{background:var(--bad);border-color:var(--bad);color:var(--bad-ink)}
 .dc-k.t-warn{color:var(--warn)}
@@ -648,7 +658,8 @@ details.fold > summary:focus-visible{outline:3px solid var(--action);outline-off
 .rb-ok{display:inline-flex;align-items:center;gap:6px;color:var(--ok);font-weight:600;font-size:.94rem}
 .gain-box{background:var(--ok-bg);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:2px;line-height:1.4}
 .gain-box b{color:var(--ok);font-size:.94rem}
-.gain-box span{display:flex;gap:8px;align-items:center}
+.gain-box > span{display:flex;gap:8px;align-items:center}
+.gain-sub{display:block;font-size:.85rem;color:var(--muted);line-height:1.35}
 .gain-box svg{color:var(--ok);flex:none}
 .resign-date{background:var(--action-soft);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;line-height:1.35}
 .resign-date > span:first-child{font-size:.94rem;font-weight:700;color:var(--action)}
