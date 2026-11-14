@@ -73,6 +73,7 @@ const ICON = {
   tick: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21c1-4 3.8-6 7.5-6s6.5 2 7.5 6"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
 };
 const LOGO = '<img class="logo" src="logo-96.png" srcset="logo-96.png 1x, logo-192.png 2x" alt="A&amp;J group" width="44" height="44">';
 const LOGO_BIG = '<img class="logo" src="logo-192.png" srcset="logo-192.png 1x, logo-512.png 2x" alt="A&amp;J group" width="104" height="104">';
@@ -1516,6 +1517,71 @@ VIEWS.adm_summary = {
       ${rows.length ? '<button class="btn wide" type="button" data-act="sum-copy">คัดลอกไปวางใน Excel</button>' : ''}</div>`;
   },
 };
+/* Head: clear what was tried out before real use. Only dates before the go-live day; staff records stay. */
+const PURGE_KINDS = [
+  ['punches', 'การลงเวลาเข้า-ออก และรูป', 'clock'],
+  ['roster', 'ตารางเวรและกะ', 'clip'],
+  ['notices', 'บันทึก: ความผิด ขาดงาน อนุญาตสาย', 'flag'],
+  ['leaves', 'คำขอลา', 'cal'],
+  ['resigns', 'แจ้งลาออก', 'out'],
+  ['extras', 'ไม่นับ OT / ให้ร้านกลับก่อน', 'otplus'],
+];
+const purgeArgs = () => { const P = S.purge; return { from: P.from || '', to: P.to || '', people: P.who === 'some' ? P.ids : null }; };
+const purgeTotal = () => { const c = (S.purgePrev && S.purgePrev.counts) || {}; return S.purge.kinds.reduce((n, k) => n + (c[k] || 0), 0); };
+VIEWS.adm_purge = {
+  async load() {
+    if (!S.purge) S.purge = { who: 'all', ids: [], kinds: PURGE_KINDS.map((k) => k[0]) };
+    if (!S.purgePeople) S.purgePeople = (await ensurePeople()).filter((p) => p.status !== 'pending');
+    const r = await api('adm_purge_preview', purgeArgs());
+    S.purgePrev = r; S.purge.from = r.from; S.purge.to = r.to;
+  },
+  render() {
+    const P = S.purge, r = S.purgePrev || {}, c = r.counts || {};
+    const total = purgeTotal(), noOne = P.who === 'some' && !P.ids.length;
+    const kinds = PURGE_KINDS.map(([k, label, ic]) => `<label class="check purge-kind"><input type="checkbox" data-kind="${k}"${P.kinds.includes(k) ? ' checked' : ''}>
+        ${icCircle(ic, c[k] ? '' : 'idle')}<span class="pk-t">${label}</span><b class="num pk-n">${fmtN(c[k] || 0)}</b></label>`).join('');
+    const people = P.who === 'some' ? `<div class="choice wide" role="group" aria-label="เลือกคน">${(S.purgePeople || []).map((p) => `<button type="button" data-act="purge-person" data-id="${esc(p.id)}" aria-pressed="${P.ids.includes(p.id)}">${esc(p.nickname)}</button>`).join('')}</div>
+        <p class="note">${P.ids.length ? `เลือกแล้ว ${P.ids.length} คน` : 'แตะชื่อคนที่จะลบข้อมูล'}</p>` : '';
+    const absentWarn = P.kinds.includes('punches') && !P.kinds.includes('roster')
+      ? `<p class="tip t-warn">${svg('alert', 20)}<span>ถ้าลบการลงเวลาแต่เก็บกะไว้ วันนั้นจะขึ้นว่าขาดงาน</span></p>` : '';
+    return `<div class="stack purge">
+      <button class="btn quiet back-btn" type="button" data-act="purge-back">‹ พนักงาน</button>
+      <h1 class="view-title">ล้างข้อมูลทดสอบ</h1>
+      <div class="resign-box">${icCircle('alert')}<div class="rb-t"><b class="rb-k">ใช้ก่อนเริ่มใช้จริง ${dLong(r.live_from)}</b>
+        <span class="note">ลบได้เฉพาะข้อมูลก่อนวันนั้น · รายชื่อพนักงานไม่ถูกลบ · ระบบเก็บสำรองไว้ ลบผิดแจ้งแทนให้กู้คืนได้</span></div></div>
+      <section class="panel purge-sec" aria-label="ช่วงวันที่"><h2 class="section-title">1. ช่วงวันที่</h2>
+        <div class="grid2"><div class="field"><label for="pg-from">ตั้งแต่วันที่</label><input type="date" id="pg-from" min="${r.min}" max="${r.max}" value="${P.from}"></div>
+          <div class="field"><label for="pg-to">ถึงวันที่</label><input type="date" id="pg-to" min="${P.from}" max="${r.max}" value="${P.to}"></div></div>
+        <p class="note">ลบได้ถึง ${dLong(r.max)} (วันก่อนเริ่มใช้จริง)</p></section>
+      <section class="panel purge-sec" aria-label="ของใคร"><h2 class="section-title">2. ของใคร</h2>
+        <div class="choice wide" role="group" aria-label="ของใคร"><button type="button" data-act="purge-who" data-v="all" aria-pressed="${P.who === 'all'}">ทุกคน</button>
+          <button type="button" data-act="purge-who" data-v="some" aria-pressed="${P.who === 'some'}">เลือกคน</button></div>${people}</section>
+      <section class="panel purge-sec" aria-label="ลบอะไรบ้าง"><h2 class="section-title">3. ลบอะไรบ้าง</h2>${kinds}${absentWarn}</section>
+      <button class="btn-primary bad-solid" type="button" data-act="purge-ask"${total && !noOne ? '' : ' disabled'}>${svg('trash', 24)}ลบข้อมูลที่เลือก · ${fmtN(total)} รายการ</button></div>`;
+  },
+};
+/* new counts without the loading screen, so the page keeps its place */
+async function purgeRefresh() {
+  const y = window.scrollY;
+  try {
+    const r = await api('adm_purge_preview', purgeArgs());
+    S.purgePrev = r; S.purge.from = r.from; S.purge.to = r.to;
+    paint(); window.scrollTo(0, y);
+  } catch (e) { toast(e.message); }
+}
+function openPurgeConfirm() {
+  const P = S.purge, c = S.purgePrev.counts || {};
+  const sel = PURGE_KINDS.filter(([k]) => P.kinds.includes(k) && c[k]);
+  const who = P.who === 'all' ? 'ทุกคน' : (S.purgePeople || []).filter((p) => P.ids.includes(p.id)).map((p) => esc(p.nickname)).join(', ');
+  sheet(`<h3>ยืนยันลบข้อมูล</h3>
+    <div class="resign-date"><span>ช่วงวันที่</span><b>${dRange(P.from, P.to)}</b><span class="note">ของ ${who}</span></div>
+    <ul class="purge-sum">${sel.map(([k, label]) => `<li><span>${label}</span><b class="num">${fmtN(c[k])}</b></li>`).join('')}
+      <li class="tot"><span>รวม</span><b class="num">${fmtN(purgeTotal())} รายการ</b></li></ul>
+    <p class="tip t-warn">${svg('alert', 20)}<span>ลบแล้วหายจากแอปทันที ทุกคนจะไม่เห็นข้อมูลนี้อีก</span></p>
+    <p class="err" id="sheet-err" role="alert"></p>
+    <div class="sheet-actions"><button class="btn" type="button" data-act="close">ยกเลิก</button>
+      <button class="btn bad-solid" type="button" data-act="purge-run" data-confirm="แตะอีกครั้งเพื่อลบ">ยืนยันลบ</button></div>`);
+}
 VIEWS.adm_person = {
   async load() {
     if (!S.personPeriod) S.personPeriod = S.period || `m:${S.today.slice(0, 7)}`;
@@ -1606,7 +1672,8 @@ VIEWS.adm_people = {
       ${groups ? `<div class="shop-grid">${groups}</div>` : ''}
       ${noShop.length ? `<details class="panel fold"><summary><b>หัวหน้า / ไม่มีร้านประจำ (${noShop.length})</b></summary><ul class="list">${noShop.map(row).join('')}</ul></details>` : ''}
       ${inactive.length ? `<details class="panel fold"><summary><b>ปิดใช้งานแล้ว (${inactive.length})</b></summary><ul class="list">${inactive.map(row).join('')}</ul></details>` : ''}
-      <p class="note">พนักงานใหม่เปิดแอปแล้วลงทะเบียนเองได้ หรือกด "เพิ่มพนักงาน" ใส่ชื่อกับเบอร์ไว้ก่อน แล้วให้พนักงานเปิดแอปกรอกเบอร์เดียวกัน</p></div>`;
+      <p class="note">พนักงานใหม่เปิดแอปแล้วลงทะเบียนเองได้ หรือกด "เพิ่มพนักงาน" ใส่ชื่อกับเบอร์ไว้ก่อน แล้วให้พนักงานเปิดแอปกรอกเบอร์เดียวกัน</p>
+      ${todoRow({ attrs: 'data-act="purge-open"', icon: 'trash', title: 'ล้างข้อมูลทดสอบ', sub: 'ลบข้อมูลที่ลองใช้ ก่อนเริ่มใช้จริง' })}</div>`;
   },
 };
 function openPersonEdit(id) {
@@ -1979,6 +2046,21 @@ const ACT = {
   }),
 
   'person-open': (el) => openPerson(el.dataset.id, el.dataset.back),
+  'purge-open': () => { S.adm = 'purge'; window.scrollTo(0, 0); load(); },
+  'purge-back': () => { S.adm = 'people'; window.scrollTo(0, 0); load(); },
+  'purge-who': (el) => { S.purge.who = el.dataset.v; purgeRefresh(); },
+  'purge-person': (el) => {
+    const P = S.purge, id = el.dataset.id;
+    P.ids = P.ids.includes(id) ? P.ids.filter((x) => x !== id) : P.ids.concat(id);
+    purgeRefresh();
+  },
+  'purge-ask': () => openPurgeConfirm(),
+  'purge-run': (el) => busy(el, async () => {
+    try {
+      const r = await api('adm_purge', Object.assign(purgeArgs(), { kinds: S.purge.kinds }));
+      closeSheet(); toast(`ลบแล้ว ${fmtN(r.deleted || 0)} รายการ`); purgeRefresh();
+    } catch (e) { sheetErr(e.message); }
+  }),
   'person-back': () => { S.adm = S.personBack || 'summary'; window.scrollTo(0, 0); load(); },
   'sum-copy': () => {
     const rows = (S.summary.rows || []).slice().sort((a, b) => a.sort_key.localeCompare(b.sort_key)).map((x) => [x.nickname, x.shop_code || '', x.worked,
@@ -2079,6 +2161,15 @@ document.addEventListener('change', (ev) => {
   if (id === 'hist-month') { S.histMonth = v; load(); }
   else if (id === 'lv-from') { const t = $('#lv-to'); if (t) { t.min = v; if (!t.value || t.value < v) t.value = v; } }
   else if (id === 'sum-period') { S.period = v; load(); }
+  else if ((id === 'pg-from' || id === 'pg-to') && S.purge && v) {
+    if (id === 'pg-from') { S.purge.from = v; if (S.purge.to < v) S.purge.to = v; } else S.purge.to = v < S.purge.from ? S.purge.from : v;
+    purgeRefresh();
+  }
+  else if (ev.target.dataset && ev.target.dataset.kind && S.purge) {
+    const k = ev.target.dataset.kind, K = S.purge.kinds;
+    S.purge.kinds = ev.target.checked ? K.concat(k).filter((x, i, a) => a.indexOf(x) === i) : K.filter((x) => x !== k);
+    paint();
+  }
   else if (id === 'person-period') { S.personPeriod = v; load(); }
   else if (id === 'ri-person' && S.edit) {
     S.edit.pid = v;
