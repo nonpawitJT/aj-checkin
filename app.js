@@ -1548,7 +1548,7 @@ VIEWS.adm_purge = {
       <button class="btn quiet back-btn" type="button" data-act="purge-back">‹ พนักงาน</button>
       <h1 class="view-title">ล้างข้อมูลทดสอบ</h1>
       <div class="resign-box">${icCircle('alert')}<div class="rb-t"><b class="rb-k">ใช้ก่อนเริ่มใช้จริง ${dLong(r.live_from)}</b>
-        <span class="note">ลบได้เฉพาะข้อมูลก่อนวันนั้น · รายชื่อพนักงานไม่ถูกลบ · ระบบเก็บสำรองไว้ ลบผิดแจ้งแทนให้กู้คืนได้</span></div></div>
+        <span class="note">ลบได้เฉพาะข้อมูลก่อนวันนั้น · รายชื่อพนักงานไม่ถูกลบ · ระบบเก็บสำรองไว้ ลบผิดแจ้งผู้ดูแลระบบให้กู้คืนได้</span></div></div>
       <section class="panel purge-sec" aria-label="ช่วงวันที่"><h2 class="section-title">1. ช่วงวันที่</h2>
         <div class="grid2"><div class="field"><label for="pg-from">ตั้งแต่วันที่</label><input type="date" id="pg-from" min="${r.min}" max="${r.max}" value="${P.from}"></div>
           <div class="field"><label for="pg-to">ถึงวันที่</label><input type="date" id="pg-to" min="${P.from}" max="${r.max}" value="${P.to}"></div></div>
