@@ -643,6 +643,23 @@ details.fold > summary:focus-visible{outline:3px solid var(--action);outline-off
 .rounds.big .num{font-size:1.6rem;line-height:1.2}
 .rounds.big .rnd-k{background:var(--surface);color:var(--action)}
 .rounds.big .rnd-shop{color:var(--brand-sub)}
+/* clear test data (heads) */
+.back-btn{align-self:flex-start;justify-self:start;width:auto;min-height:44px;padding-inline:8px}
+.purge-sec{padding:12px 14px;display:grid;gap:10px}
+.purge-sec .section-title{margin:0}
+.purge-sec .grid2{grid-template-columns:repeat(auto-fit,minmax(min(100%,8.5rem),1fr))}
+.purge-sec input[type="date"]{min-width:0;width:100%;box-sizing:border-box}
+.purge-kind{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:10px;min-height:56px;border-top:1px solid var(--line);padding-top:6px}
+.purge-kind:first-of-type{border-top:0;padding-top:0}
+.pk-t{line-height:1.35}
+.pk-n{font-size:1.18rem}
+.tip.t-warn{color:var(--warn)}
+.btn-primary.bad-solid{background:var(--bad);color:var(--bad-ink)}
+.btn-primary.bad-solid:disabled{background:var(--idle-bg);color:var(--muted)}
+.purge-sum{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.purge-sum li{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;border-top:1px solid var(--line)}
+.purge-sum li:first-child{border-top:0}
+.purge-sum li.tot{background:var(--surface-2);font-weight:700}
 /* resignation notice */
 .btn.bad-solid{background:var(--bad);border-color:var(--bad);color:var(--bad-ink)}
 .dc-k.t-warn{color:var(--warn)}
