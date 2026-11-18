@@ -188,6 +188,11 @@ function route() {
 }
 
 /* ---------------------------------------------------------------- frame */
+/* Version shown to heads only, at the foot of every back-office page. Bump on every deploy to main:
+   the date always; the number when a new set of features goes live (2.5 → 2.6, a big change → 3.0).
+   History: v1.0 27 ต.ค. … v2.5 14 พ.ย. 2569, one git tag per version. */
+const APP_VERSION = '2.5', APP_UPDATED = '18 พ.ย. 2569';
+const versionLine = () => `<p class="app-ver"><span>A&amp;J เช็คอิน เวอร์ชัน <b>${APP_VERSION}</b></span> · <span>อัปเดตล่าสุด ${APP_UPDATED}</span></p>`;
 const themeSwitch = () => `<div class="size-switch theme-switch" role="group" aria-label="สีหน้าจอ"><button type="button" data-act="theme" data-v="light" aria-pressed="${theme !== 'dark'}" aria-label="หน้าจอสว่าง" title="สว่าง">${svg('sun', 20)}</button><button type="button" data-act="theme" data-v="dark" aria-pressed="${theme === 'dark'}" aria-label="หน้าจอมืด" title="มืด">${svg('moon', 20)}</button></div>`;
 const sizeSwitch = () => `<div class="size-switch" role="group" aria-label="ขนาดตัวอักษร"><button type="button" data-act="size" data-s="md" aria-pressed="${size !== 'lg'}">ก</button><button type="button" class="lg" data-act="size" data-s="lg" aria-pressed="${size === 'lg'}">ก+</button></div>`;
 function devBar() {
@@ -226,7 +231,7 @@ function shell(content) {
     const badge = admin ? S.badges[k] || 0 : 0;
     return `<button type="button" data-act="tab" data-t="${k}"${cur === k ? ' aria-current="page"' : ''}>${svg(ic)}<span>${label}</span>${badge ? `<span class="dot">${badge}</span>` : ''}</button>`;
   }).join('');
-  return topbar(sub, extra) + `<main class="wrap" id="main">${content}</main><nav class="nav" aria-label="เมนู"><div class="wrap">${nav}</div></nav>`;
+  return topbar(sub, extra) + `<main class="wrap" id="main">${content}${admin ? versionLine() : ''}</main><nav class="nav" aria-label="เมนู"><div class="wrap">${nav}</div></nav>`;
 }
 function view() { return S.mode === 'admin' ? VIEWS['adm_' + S.adm] : VIEWS['st_' + S.tab]; }
 function paint() {
