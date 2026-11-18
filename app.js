@@ -190,7 +190,8 @@ function route() {
 /* ---------------------------------------------------------------- frame */
 /* Version shown to heads only, at the foot of every back-office page. Bump on every deploy to main:
    the date always; the number when a new set of features goes live (2.5 → 2.6, a big change → 3.0).
-   History: v1.0 27 ต.ค. … v2.5 14 พ.ย. 2569, one git tag per version. */
+   History (last commit of each): 1.0 825f2b6 · 1.1 27229e1 · 1.2 1903b49 · 1.3 64f808d · 2.0 b726fcd ·
+   2.1 90a19dd · 2.2 25e46cb · 2.3 56a117c · 2.4 e99b266 · 2.5 9d18821 + this version line. */
 const APP_VERSION = '2.5', APP_UPDATED = '18 พ.ย. 2569';
 const versionLine = () => `<p class="app-ver"><span>A&amp;J เช็คอิน เวอร์ชัน <b>${APP_VERSION}</b></span> · <span>อัปเดตล่าสุด ${APP_UPDATED}</span></p>`;
 const themeSwitch = () => `<div class="size-switch theme-switch" role="group" aria-label="สีหน้าจอ"><button type="button" data-act="theme" data-v="light" aria-pressed="${theme !== 'dark'}" aria-label="หน้าจอสว่าง" title="สว่าง">${svg('sun', 20)}</button><button type="button" data-act="theme" data-v="dark" aria-pressed="${theme === 'dark'}" aria-label="หน้าจอมืด" title="มืด">${svg('moon', 20)}</button></div>`;
